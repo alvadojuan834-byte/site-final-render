@@ -4,6 +4,8 @@ import os
 import csv
 import urllib.parse
 import urllib.request
+import io
+import ast
 
 app = Flask(__name__)
 app.secret_key = 'cle_secrete_boutique_v8'
@@ -40,21 +42,23 @@ LOCAL_STATE_FILE = r"C:\boutique_propre\produits_etat.csv"
 def charger_produits():
     if os.path.exists(LOCAL_STATE_FILE):
         produits = []
-        with open(LOCAL_STATE_FILE, mode='r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                row['id'] = int(row['id'])
-                galerie_raw = row.get('galerie', '')
-                if galerie_raw.startswith('['):
-                    import ast
-                    try:
-                        row['galerie'] = ast.literal_eval(galerie_raw)
-                    except:
-                        row['galerie'] = [row.get('image', '')]
-                else:
-                    row['galerie'] = [img.strip() for img in galerie_raw.split(',') if img.strip()]
-                produits.append(row)
-        return produits
+        try:
+            with open(LOCAL_STATE_FILE, mode='r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    row['id'] = int(row['id'])
+                    galerie_raw = row.get('galerie', '')
+                    if galerie_raw.startswith('['):
+                        try:
+                            row['galerie'] = ast.literal_eval(galerie_raw)
+                        except:
+                            row['galerie'] = [row.get('image', '')]
+                    else:
+                        row['galerie'] = [img.strip() for img in galerie_raw.split(',') if img.strip()]
+                    produits.append(row)
+            return produits
+        except Exception as e:
+            print(f"Erreur chargement etat local: {e}")
 
     produits_importes = []
     dossier_csv = r"C:\csv.aliexpress"
@@ -108,15 +112,18 @@ def charger_produits():
     return produits_importes
 
 def sauvegarder_produits(produits):
-    os.makedirs(os.path.dirname(LOCAL_STATE_FILE), exist_ok=True)
-    with open(LOCAL_STATE_FILE, mode='w', newline='', encoding='utf-8') as f:
-        fieldnames = ['id', 'nom', 'prix', 'image', 'galerie', 'categorie', 'description']
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        for p in produits:
-            p_copy = p.copy()
-            p_copy['galerie'] = str(p_copy['galerie'])
-            writer.writerow(p_copy)
+    try:
+        os.makedirs(os.path.dirname(LOCAL_STATE_FILE), exist_ok=True)
+        with open(LOCAL_STATE_FILE, mode='w', newline='', encoding='utf-8') as f:
+            fieldnames = ['id', 'nom', 'prix', 'image', 'galerie', 'categorie', 'description']
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            for p in produits:
+                p_copy = p.copy()
+                p_copy['galerie'] = str(p_copy['galerie'])
+                writer.writerow(p_copy)
+    except Exception as e:
+        print(f"Erreur sauvegarde produits: {e}")
 
 PRODUITS = charger_produits()
 COMMANDES = []
@@ -382,7 +389,6 @@ HTML_SUCCESS = """
 </html>
 """
 
-# Page de Connexion Admin
 HTML_LOGIN = """
 <!DOCTYPE html>
 <html lang="fr">
@@ -419,7 +425,6 @@ HTML_ADMIN = """
         </div>
     </div>
     <div class="container">
-        <!-- Section Ajout / Importation CSV -->
         <div style="background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 25px;">
             <h3 style="color: #2e1065; margin-bottom: 10px;">📂 Importer un fichier CSV (AliExpress)</h3>
             <p style="color: #64748b; font-size: 13px; margin-bottom: 15px;">Sélectionnez un fichier `.csv` pour l'ajouter instantanément au catalogue avec toutes ses photos.</p>
@@ -429,7 +434,6 @@ HTML_ADMIN = """
             </form>
         </div>
 
-        <!-- Section Gestion des produits existants -->
         <div style="background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
             <h3 style="color: #2e1065; margin-bottom: 15px;">⚙️ Gestion des produits ({{ produits|length }} articles)</h3>
             <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
@@ -546,7 +550,10 @@ def process_order():
     commande = {
         "nom": request.form.get('nom'),
         "adresse": request.form.get('adresse'),
+        "cp": request.form.get('cp'),
         "ville": request.form.get('ville'),
+        "pays": request.form.get('pays'),
+        "tel": request.form.get('tel'),
         "total": total,
         "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
@@ -554,28 +561,38 @@ def process_order():
     session.pop('cart', None)
     return render_template_string(HTML_SUCCESS, commande=commande)
 
-@app.route('/admin', methods=['GET'])
-def admin():
+@app.route('/admin')
+def admin_panel():
     if not session.get('admin_logged'):
         return redirect(url_for('admin_login'))
     return render_template_string(HTML_ADMIN, produits=PRODUITS, categories=CATEGORIES)
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
-    erreur = None
     if request.method == 'POST':
-        password = request.form.get('password', '')
-        if password == ADMIN_PASSWORD:
+        if request.form.get('password') == ADMIN_PASSWORD:
             session['admin_logged'] = True
-            return redirect(url_for('admin'))
-        else:
-            erreur = "Mot de passe incorrect."
-    return render_template_string(HTML_LOGIN, erreur=erreur)
+            return redirect(url_for('admin_panel'))
+        return render_template_string(HTML_LOGIN, erreur="Mot de passe incorrect")
+    return render_template_string(HTML_LOGIN)
 
 @app.route('/admin/logout')
 def admin_logout():
     session.pop('admin_logged', None)
     return redirect(url_for('admin_login'))
+
+@app.route('/admin/update_cat/<int:p_id>', methods=['POST'])
+def admin_update_cat(p_id):
+    if not session.get('admin_logged'):
+        return redirect(url_for('admin_login'))
+    nouvelle_cat = request.form.get('nouvelle_cat')
+    global PRODUITS
+    for p in PRODUITS:
+        if p['id'] == p_id:
+            p['categorie'] = nouvelle_cat
+            break
+    sauvegarder_produits(PRODUITS)
+    return redirect(url_for('admin_panel'))
 
 @app.route('/admin/delete/<int:p_id>')
 def admin_delete(p_id):
@@ -584,32 +601,62 @@ def admin_delete(p_id):
     global PRODUITS
     PRODUITS = [p for p in PRODUITS if p['id'] != p_id]
     sauvegarder_produits(PRODUITS)
-    return redirect(url_for('admin'))
-
-@app.route('/admin/update_cat/<int:p_id>', methods=['POST'])
-def admin_update_cat(p_id):
-    if not session.get('admin_logged'):
-        return redirect(url_for('admin_login'))
-    nouvelle_cat = request.form.get('nouvelle_cat')
-    for p in PRODUITS:
-        if p['id'] == p_id:
-            p['categorie'] = nouvelle_cat
-            break
-    sauvegarder_produits(PRODUITS)
-    return redirect(url_for('admin'))
+    return redirect(url_for('admin_panel'))
 
 @app.route('/admin/import_csv', methods=['POST'])
 def admin_import_csv():
     if not session.get('admin_logged'):
         return redirect(url_for('admin_login'))
-    fichier = request.files.get('fichier_csv')
-    if fichier:
-        os.makedirs(r"C:\csv.aliexpress", exist_ok=True)
-        chemin = os.path.join(r"C:\csv.aliexpress", fichier.filename)
-        fichier.save(chemin)
+    
+    if 'fichier_csv' not in request.files:
+        return redirect(url_for('admin_panel'))
+    
+    file = request.files['fichier_csv']
+    if file.filename == '':
+        return redirect(url_for('admin_panel'))
+    
+    try:
+        content = file.read().decode('utf-8-sig')
+        f = io.StringIO(content)
+        lecteur = csv.DictReader(f)
+        
         global PRODUITS
-        PRODUITS = charger_produits()
-    return redirect(url_for('admin'))
+        max_id = max([p['id'] for p in PRODUITS], default=-1)
+        c = max_id + 1
+        
+        for ligne in lecteur:
+            nom = ligne.get('Title', 'Produit AliExpress')
+            prix = ligne.get('Sale price', '19.99')
+            if not prix:
+                prix = '19.99'
+            image = ligne.get('Product Image Url', 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500')
+            
+            if ',' in image:
+                image = image.split(',')[0].strip()
+
+            galerie_raw = ligne.get('Main images url', '')
+            galerie = [img.strip() for img in galerie_raw.split(',') if img.strip()]
+            if not galerie:
+                galerie = [image]
+
+            desc = ligne.get('Product description html', 'Aucune description disponible.')
+
+            PRODUITS.append({
+                "id": c,
+                "nom": nom,
+                "prix": prix,
+                "image": image,
+                "galerie": galerie[:5],
+                "categorie": "general",
+                "description": desc[:300] + "..."
+            })
+            c += 1
+            
+        sauvegarder_produits(PRODUITS)
+    except Exception as e:
+        print(f"Erreur import CSV admin: {e}")
+        
+    return redirect(url_for('admin_panel'))
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True)
