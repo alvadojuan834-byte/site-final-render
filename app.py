@@ -4,6 +4,7 @@ import os
 import csv
 import urllib.parse
 import urllib.request
+import ast
 
 app = Flask(__name__)
 app.secret_key = 'cle_secrete_boutique_v8'
@@ -46,7 +47,6 @@ def charger_produits():
                 row['id'] = int(row['id'])
                 galerie_raw = row.get('galerie', '')
                 if galerie_raw.startswith('['):
-                    import ast
                     try:
                         row['galerie'] = ast.literal_eval(galerie_raw)
                     except:
@@ -548,133 +548,31 @@ def process_order():
         "pays": request.form.get('pays'),
         "tel": request.form.get('tel'),
         "total": total,
-        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        "items": items
     }
-    
-    nvp_data = {
-        'USER': PAYPAL_API_USER,
-        'PWD': PAYPAL_API_PWD,
-        'SIGNATURE': PAYPAL_API_SIGNATURE,
-        'VERSION': '124.0',
-        'METHOD': 'SetExpressCheckout',
-        'PAYMENTREQUEST_0_AMT': f"{total:.2f}",
-        'PAYMENTREQUEST_0_CURRENCYCODE': 'EUR',
-        'PAYMENTREQUEST_0_PAYMENTACTION': 'Sale',
-        'RETURNURL': url_for('paypal_return', _external=True),
-        'CANCELURL': url_for('cart', _external=True)
-    }
-    
-    encoded_data = urllib.parse.urlencode(nvp_data).encode('utf-8')
-    req = urllib.request.Request(PAYPAL_URL, data=encoded_data, method='POST')
-    
-    try:
-        response = urllib.request.urlopen(req)
-        response_text = response.read().decode('utf-8')
-        response_qs = urllib.parse.parse_qs(response_text)
-        
-        if response_qs.get('ACK', [''])[0] == 'Success':
-            token = response_qs.get('TOKEN', [''])[0]
-            session['pending_commande'] = commande
-            return redirect(f"https://www.sandbox.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token={token}")
-        else:
-            return f"Erreur PayPal : {response_text}"
-    except Exception as e:
-        return f"Erreur de connexion PayPal : {e}"
+    COMMANDES.append(commande)
+    session.pop('cart', None)
+    return render_template_string(HTML_SUCCESS, commande=commande)
 
-@app.route('/paypal_return')
-def paypal_return():
-    token = request.args.get('token')
-    commande = session.get('pending_commande', {})
-    
-    nvp_data = {
-        'USER': PAYPAL_API_USER,
-        'PWD': PAYPAL_API_PWD,
-        'SIGNATURE': PAYPAL_API_SIGNATURE,
-        'VERSION': '124.0',
-        'METHOD': 'GetExpressCheckoutDetails',
-        'TOKEN': token
-    }
-    
-    encoded_data = urllib.parse.urlencode(nvp_data).encode('utf-8')
-    req = urllib.request.Request(PAYPAL_URL, data=encoded_data, method='POST')
-    
-    try:
-        response = urllib.request.urlopen(req)
-        response_text = response.read().decode('utf-8')
-        response_qs = urllib.parse.parse_qs(response_text)
-        
-        if response_qs.get('ACK', [''])[0] == 'Success':
-            total = commande.get('total', 0)
-            do_data = {
-                'USER': PAYPAL_API_USER,
-                'PWD': PAYPAL_API_PWD,
-                'SIGNATURE': PAYPAL_API_SIGNATURE,
-                'VERSION': '124.0',
-                'METHOD': 'DoExpressCheckoutPayment',
-                'TOKEN': token,
-                'PAYERID': response_qs.get('PAYERID', [''])[0],
-                'PAYMENTREQUEST_0_AMT': f"{total:.2f}",
-                'PAYMENTREQUEST_0_CURRENCYCODE': 'EUR',
-                'PAYMENTREQUEST_0_PAYMENTACTION': 'Sale'
-            }
-            
-            do_encoded = urllib.parse.urlencode(do_data).encode('utf-8')
-            do_req = urllib.request.Request(PAYPAL_URL, data=do_encoded, method='POST')
-            do_resp = urllib.request.urlopen(do_req)
-            do_text = do_resp.read().decode('utf-8')
-            do_qs = urllib.parse.parse_qs(do_text)
-            
-            if do_qs.get('ACK', [''])[0] == 'Success':
-                COMMANDES.append(commande)
-                session.pop('cart', None)
-                session.pop('pending_commande', None)
-                return render_template_string(HTML_SUCCESS, commande=commande)
-                
-        return f"Erreur lors de la validation finale du paiement."
-    except Exception as e:
-        return f"Erreur technique PayPal : {e}"
+@app.route('/admin')
+def admin():
+    if not session.get('admin_logged'):
+        return redirect(url_for('admin_login'))
+    return render_template_string(HTML_ADMIN, produits=PRODUITS, categories=CATEGORIES)
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
     if request.method == 'POST':
         if request.form.get('password') == ADMIN_PASSWORD:
             session['admin_logged'] = True
-            return redirect(url_for('admin_dashboard'))
-        else:
-            return render_template_string(HTML_LOGIN, erreur="Mot de passe incorrect.")
+            return redirect(url_for('admin'))
+        return render_template_string(HTML_LOGIN, erreur="Mot de passe incorrect")
     return render_template_string(HTML_LOGIN)
-
-@app.route('/admin')
-def admin_dashboard():
-    if not session.get('admin_logged'):
-        return redirect(url_for('admin_login'))
-    return render_template_string(HTML_ADMIN, produits=PRODUITS, categories=CATEGORIES)
 
 @app.route('/admin/logout')
 def admin_logout():
     session.pop('admin_logged', None)
     return redirect(url_for('admin_login'))
-
-@app.route('/admin/update_cat/<int:p_id>', methods=['POST'])
-def admin_update_cat(p_id):
-    if not session.get('admin_logged'):
-        return redirect(url_for('admin_login'))
-    nouvelle_cat = request.form.get('nouvelle_cat')
-    for p in PRODUITS:
-        if p['id'] == p_id:
-            p['categorie'] = nouvelle_cat
-            break
-    sauvegarder_produits(PRODUITS)
-    return redirect(url_for('admin_dashboard'))
-
-@app.route('/admin/delete/<int:p_id>')
-def admin_delete(p_id):
-    if not session.get('admin_logged'):
-        return redirect(url_for('admin_login'))
-    global PRODUITS
-    PRODUITS = [p for p in PRODUITS if p['id'] != p_id]
-    sauvegarder_produits(PRODUITS)
-    return redirect(url_for('admin_dashboard'))
 
 @app.route('/admin/import_csv', methods=['POST'])
 def admin_import_csv():
@@ -683,42 +581,39 @@ def admin_import_csv():
     
     fichier = request.files.get('fichier_csv')
     if fichier and fichier.filename.endswith('.csv'):
-        contenu = fichier.read().decode('utf-8-sig', errors='ignore').splitlines()
-        lecteur = csv.DictReader(contenu)
+        os.makedirs(r"C:\csv.aliexpress", exist_ok=True)
+        chemin = os.path.join(r"C:\csv.aliexpress", fichier.filename)
+        fichier.save(chemin)
         
         global PRODUITS
-        max_id = max([p['id'] for p in PRODUITS], default=-1)
-        c = max_id + 1
-        
-        for ligne in lecteur:
-            nom = ligne.get('Title', 'Produit AliExpress')
-            prix = ligne.get('Sale price', '19.99')
-            if not prix:
-                prix = '19.99'
-            image = ligne.get('Product Image Url', 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500')
-            if ',' in image:
-                image = image.split(',')[0].strip()
-                
-            galerie_raw = ligne.get('Main images url', '')
-            galerie = [img.strip() for img in galerie_raw.split(',') if img.strip()]
-            if not galerie:
-                galerie = [image]
-                
-            desc = ligne.get('Product description html', 'Aucune description disponible.')
-            
-            PRODUITS.append({
-                "id": c,
-                "nom": nom,
-                "prix": prix,
-                "image": image,
-                "galerie": galerie[:5],
-                "categorie": "general",
-                "description": desc[:300] + "..."
-            })
-            c += 1
-            
-        sauvegarder_produits(PRODUITS)
-    return redirect(url_for('admin_dashboard'))
+        PRODUITS = charger_produits()
+
+    # Redirection propre vers l'admin sans code d'erreur brut
+    return redirect(url_for('admin'))
+
+@app.route('/admin/update_cat/<int:p_id>', methods=['POST'])
+def admin_update_cat(p_id):
+    if not session.get('admin_logged'):
+        return redirect(url_for('admin_login'))
+    
+    nouvelle_cat = request.form.get('nouvelle_cat')
+    global PRODUITS
+    for p in PRODUITS:
+        if p['id'] == p_id:
+            p['categorie'] = nouvelle_cat
+            break
+    sauvegarder_produits(PRODUITS)
+    return redirect(url_for('admin'))
+
+@app.route('/admin/delete/<int:p_id>')
+def admin_delete(p_id):
+    if not session.get('admin_logged'):
+        return redirect(url_for('admin_login'))
+    
+    global PRODUITS
+    PRODUITS = [p for p in PRODUITS if p['id'] != p_id]
+    sauvegarder_produits(PRODUITS)
+    return redirect(url_for('admin'))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
