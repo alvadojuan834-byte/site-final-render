@@ -2,23 +2,29 @@
 from datetime import datetime
 import os
 import csv
+import urllib.parse
+import urllib.request
 import ast
 
 app = Flask(__name__)
 app.secret_key = 'cle_secrete_boutique_v8'
 
-# Ton e-mail officiel PayPal Live pour recevoir les paiements en direct
-PAYPAL_EMAIL = "alvadojuan834_api1.gmail.com"
+# Vraies informations de production PayPal (Live)
+PAYPAL_API_USER = "alvadojuan834_api1.gmail.com"
+PAYPAL_API_PWD = "6VUUOI36XVVXLICO"
+PAYPAL_API_SIGNATURE = "AaRSU2y8OAIEIxg92K4Zpd.Ucl0BAZSsK.CC9mosIjzFIvsppRWx-4Y"
+PAYPAL_URL = "https://api-3t.paypal.com/nvp"
 
+# Mot de passe administrateur
 ADMIN_PASSWORD = "monpassadmin123"
 
 TRADUCTIONS = {
-    "fr": {"shop": "MonShop Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Panier", "all": "Toutes les catégories", "buy": "Acheter", "total": "Total", "checkout": "🔒 Valider la commande", "empty": "Votre panier est vide.", "color": "Couleur", "size": "Taille", "desc": "Description du produit", "search_placeholder": "Rechercher un produit..."},
-    "be": {"shop": "MonShop Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Panier", "all": "Toutes les catégories", "buy": "Acheter", "total": "Total", "checkout": "🔒 Valider la commande", "empty": "Votre panier est vide wesh.", "color": "Couleur", "size": "Taille", "desc": "Description du produit", "search_placeholder": "Rechercher un produit..."},
-    "en": {"shop": "MonShop Direct", "promo": "🔥 AliExpress Boost Promos 🔥", "cart": "Cart", "all": "All categories", "buy": "Buy Now", "total": "Total", "checkout": "🔒 Checkout", "empty": "Your cart is empty.", "color": "Color", "size": "Size", "desc": "Product description", "search_placeholder": "Search a product..."},
-    "de": {"shop": "MonShop Direct", "promo": "🔥 AliExpress Boost Angebote 🔥", "cart": "Warenkorb", "all": "Alle Kategorien", "buy": "Kaufen", "total": "Gesamt", "checkout": "🔒 Zur Kasse", "empty": "Ihr Warenkorb ist leer.", "color": "Farbe", "size": "Größe", "desc": "Produktbeschreibung", "search_placeholder": "Produkt suchen..."},
-    "es": {"shop": "MonShop Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Carrito", "all": "Todas las categorías", "buy": "Comprar", "total": "Total", "checkout": "🔒 Tramitar pedido", "empty": "Tu carrito está vacío.", "color": "Color", "talla": "Talla", "desc": "Descripción del producto", "search_placeholder": "Buscar un producto..."},
-    "nl": {"shop": "MonShop Direct", "promo": "🔥 AliExpress Boost Promo's 🔥", "cart": "Winkelmand", "all": "Alle categorieën", "buy": "Kopen", "total": "Totaal", "checkout": "🔒 Afrekenen", "empty": "Je winkelmand is leeg.", "color": "Kleur", "size": "Maat", "desc": "Produktbeschrijving", "search_placeholder": "Zoek een product..."}
+    "fr": {"shop": "MonShop Direct", "promo": "🔥 Catalogue Direct ✨", "cart": "Panier", "all": "Toutes les catégories", "buy": "Acheter", "total": "Total", "checkout": "🔒 Valider la commande", "empty": "Votre panier est vide.", "color": "Couleur", "size": "Taille", "desc": "Description du produit", "search_placeholder": "Rechercher un produit..."},
+    "be": {"shop": "MonShop Direct", "promo": "🔥 Catalogue Direct ✨", "cart": "Panier", "all": "Toutes les catégories", "buy": "Acheter", "total": "Total", "checkout": "🔒 Valider la commande", "empty": "Votre panier est vide wesh.", "color": "Couleur", "size": "Taille", "desc": "Description du produit", "search_placeholder": "Rechercher un produit..."},
+    "en": {"shop": "MonShop Direct", "promo": "🔥 Catalogue Direct ✨", "cart": "Cart", "all": "All categories", "buy": "Buy Now", "total": "Total", "checkout": "🔒 Checkout", "empty": "Your cart is empty.", "color": "Color", "size": "Size", "desc": "Product description", "search_placeholder": "Search a product..."},
+    "de": {"shop": "MonShop Direct", "promo": "🔥 Catalogue Direct ✨", "cart": "Warenkorb", "all": "Alle Kategorien", "buy": "Kaufen", "total": "Gesamt", "checkout": "🔒 Zur Kasse", "empty": "Ihr Warenkorb ist leer.", "color": "Farbe", "size": "Größe", "desc": "Produktbeschreibung", "search_placeholder": "Produkt suchen..."},
+    "es": {"shop": "MonShop Direct", "promo": "🔥 Catalogue Direct ✨", "cart": "Carrito", "all": "Todas las categorías", "buy": "Comprar", "total": "Total", "checkout": "🔒 Tramitar pedido", "empty": "Tu carrito está vacío.", "color": "Color", "talla": "Talla", "desc": "Descripción del producto", "search_placeholder": "Buscar un producto..."},
+    "nl": {"shop": "MonShop Direct", "promo": "🔥 Catalogue Direct ✨", "cart": "Winkelmand", "all": "Alle categorieën", "buy": "Kopen", "total": "Totaal", "checkout": "🔒 Afrekenen", "empty": "Je winkelmand is leeg.", "color": "Kleur", "size": "Maat", "desc": "Produktbeschrijving", "search_placeholder": "Zoek een product..."}
 }
 
 CATEGORIES = {
@@ -27,10 +33,42 @@ CATEGORIES = {
     "cuisine": "🍳 Cuisine & Ustensiles",
     "sport": "⚽ Sport & Loisirs",
     "eclairage": "💡 Éclairage & Auto",
+    "mode": "👕 Mode & Accessoires",
+    "beaute": "💄 Beauté & Santé",
+    "bricolage": "🛠️ Bricolage & Outils",
+    "jardin": "🌱 Jardin & Extérieur",
+    "animaux": "🐾 Animaux de compagnie",
+    "gaming": "🎮 Gaming & High-Tech",
     "general": "✨ Tendances Générales"
 }
 
 LOCAL_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "produits_etat.csv")
+
+def determiner_categorie(nom_produit):
+    nom = nom_produit.lower()
+    if any(k in nom for k in ['phone', 'tel', 'audio', 'écouteur', 'casque', 'bluetooth', 'cable', 'chargeur', 'montre', 'smartwatch']):
+        return "telephonie"
+    elif any(k in nom for k in ['chauffage', 'radiateur', 'ventilateur', 'maison', 'lampe', 'lumière', 'ampoule', 'led']):
+        return "chauffage"
+    elif any(k in nom for k in ['cuisine', 'gant', 'silicone', 'tasse', 'bouteille', 'gourde', 'coupe', 'poêle', 'casserole', 'moule']):
+        return "cuisine"
+    elif any(k in nom for k in ['sport', 'fitness', 'musculation', 'vélo', 'yoga', 'camping', 'plein air', 'loisir']):
+        return "sport"
+    elif any(k in nom for k in ['auto', 'voiture', 'caméra', 'rétroviseur', 'clé', 'outil auto']):
+        return "eclairage"
+    elif any(k in nom for k in ['chemise', 'pantalon', 'robe', 'chaussure', 'sac', 'portefeuille', 'vêtement', 'pull', 'veste', 'lunettes']):
+        return "mode"
+    elif any(k in nom for k in ['maquillage', 'brosse', 'cheveux', 'soin', 'crème', 'rasoir', 'épilateur', 'parfum', 'ongle', 'miroir']):
+        return "beaute"
+    elif any(k in nom for k in ['perceuse', 'tournevis', 'vis', 'marteau', 'bricolage', 'mètre', 'pince', 'scie', 'quincaillerie']):
+        return "bricolage"
+    elif any(k in nom for k in ['jardin', 'plante', 'fleur', 'arrosage', 'tuyau', 'terrasse', 'solaire', 'barbecue', 'piscine']):
+        return "jardin"
+    elif any(k in nom for k in ['chat', 'chien', 'animal', 'croquette', 'laisse', 'collier', 'niche', 'litière', 'jouet pour chat']):
+        return "animaux"
+    elif any(k in nom for k in ['gaming', 'clavier', 'souris', 'manette', 'pc', 'gamer', 'console', 'jeu vidéo', 'micro']):
+        return "gaming"
+    return "general"
 
 def parser_dossier_csv():
     produits_importes = []
@@ -38,7 +76,7 @@ def parser_dossier_csv():
     if not os.path.exists(dossier_csv):
         return []
 
-    c = 0
+    c = 1
     for fichier in os.listdir(dossier_csv):
         if fichier.endswith(".csv"):
             chemin_complet = os.path.join(dossier_csv, fichier)
@@ -56,9 +94,10 @@ def parser_dossier_csv():
                         if not galerie: galerie = [image]
                         desc = ligne.get('Product description html') or ligne.get('description') or 'Aucune description disponible.'
                         
+                        cat = determiner_categorie(nom)
                         produits_importes.append({
                             "id": c, "nom": nom, "prix": str(prix), "image": image,
-                            "galerie": galerie[:5], "categorie": "general", "description": str(desc)[:300] + "..."
+                            "galerie": galerie[:5], "categorie": cat, "description": str(desc)[:300] + "..."
                         })
                         c += 1
             except Exception as e:
@@ -66,8 +105,8 @@ def parser_dossier_csv():
     return produits_importes
 
 def charger_produits():
+    produits = []
     if os.path.exists(LOCAL_STATE_FILE):
-        produits = []
         try:
             with open(LOCAL_STATE_FILE, mode='r', encoding='utf-8') as f:
                 reader = csv.DictReader(f)
@@ -82,21 +121,20 @@ def charger_produits():
                     else:
                         row['galerie'] = [img.strip() for img in galerie_raw.split(',') if img.strip()]
                     produits.append(row)
-            if produits:
-                return produits
         except:
             pass
 
-    produits_importes = parser_dossier_csv()
-    if not produits_importes:
-        produits_importes = [{
-            "id": 0, "nom": "Radiateur Électrique à Convection 2000W", "prix": "49.99",
-            "image": "https://images.unsplash.com/photo-1585338107529-13afc5f02586?w=500",
-            "galerie": ["https://images.unsplash.com/photo-1585338107529-13afc5f02586?w=500"],
-            "categorie": "chauffage", "description": "Description par défaut."
-        }]
-    sauvegarder_produits(produits_importes)
-    return produits_importes
+    if not produits:
+        produits = parser_dossier_csv()
+        if not produits:
+            produits = [{
+                "id": 1, "nom": "Radiateur Électrique à Convection 2000W", "prix": "49.99",
+                "image": "https://images.unsplash.com/photo-1585338107529-13afc5f02586?w=500",
+                "galerie": ["https://images.unsplash.com/photo-1585338107529-13afc5f02586?w=500"],
+                "categorie": "chauffage", "description": "Description par défaut."
+            }]
+        sauvegarder_produits(produits)
+    return produits
 
 def sauvegarder_produits(produits):
     os.makedirs(os.path.dirname(LOCAL_STATE_FILE), exist_ok=True)
@@ -142,9 +180,7 @@ CSS_STYLED = """
     .card-title { font-size: 13px; font-weight: 700; color: #1f2937; margin-bottom: 10px; text-decoration: none; height: 40px; overflow: hidden; display: block; }
     .card-price { font-size: 18px; font-weight: 900; color: #2563eb; margin-bottom: 12px; }
     .btn-buy { background: #6d28d9; color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; text-decoration: none; text-align: center; display: block; width: 100%; }
-    .btn-buy:hover { background: #581c87; }
-    .btn-paypal { background: #0070ba; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; text-decoration: none; text-align: center; display: block; width: 100%; transition: background 0.2s; }
-    .btn-paypal:hover { background: #003087; }
+    .btn-paypal { background: #0070ba; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; text-decoration: none; text-align: center; display: block; width: 100%; }
 </style>
 """
 
@@ -187,7 +223,7 @@ HTML_INDEX = """
             <a href="/?cat={{ slug }}&lang={{ lang }}{% if search_query %}&q={{ search_query }}{% endif %}" class="cat-tag {% if active_cat == slug %}active{% endif %}">{{ nom }}</a>
             {% endfor %}
         </div>
-        <div class="sec-header">🚀 Catalogue AliExpress {% if active_cat %}- {{ categories.get(active_cat, '') }}{% endif %} ({{ produits|length }} articles)</div>
+        <div class="sec-header">Catalogue Direct ✨ {% if active_cat %}- {{ categories.get(active_cat, '') }}{% endif %} ({{ produits|length }} articles)</div>
         <div class="grid">
             {% for p in produits %}
             <div class="card">
@@ -215,18 +251,13 @@ HTML_PRODUCT = """
         <div class="promo-banner">{{ t.promo }}</div>
         <a href="/?lang={{ lang }}" style="color:white; text-decoration:none; font-weight:bold;">⬅️ Retour</a>
     </div>
-    <div class="top-trust-bar">
-        <div class="trust-item"><span>🔒</span> Paiement 100% sécurisé</div>
-        <div class="trust-item"><span>📦</span> Suivi des colis en temps réel</div>
-        <div class="trust-item"><span>⚡</span> Expédition rapide garantie</div>
-    </div>
     <div class="container">
-        <div style="background: white; border-radius: 12px; padding: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-top: 20px;">
+        <div style="background: white; border-radius: 12px; padding: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 20px;">
             <div>
-                <img src="{{ p.image }}" id="mainImg" style="width: 100%; height: 380px; object-fit: cover; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <img src="{{ p.image }}" id="mainImg" style="width: 100%; height: 380px; object-fit: cover; border-radius: 8px;">
                 <div style="display: flex; gap: 10px; margin-top: 15px; overflow-x: auto;">
                     {% for img in p.galerie %}
-                    <img src="{{ img }}" style="width: 70px; height: 70px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 2px solid #cbd5e1;" onclick="document.getElementById('mainImg').src = this.src">
+                    <img src="{{ img }}" style="width: 70px; height: 70px; object-fit: cover; border-radius: 6px; cursor: pointer;" onclick="document.getElementById('mainImg').src = this.src">
                     {% endfor %}
                 </div>
             </div>
@@ -254,13 +285,8 @@ HTML_CART = """
         <div class="promo-banner">{{ t.promo }}</div>
         <a href="/?lang={{ lang }}" style="color:white; text-decoration:none; font-weight:bold;">Continuer</a>
     </div>
-    <div class="top-trust-bar">
-        <div class="trust-item"><span>🔒</span> Paiement 100% sécurisé</div>
-        <div class="trust-item"><span>📦</span> Suivi des colis en temps réel</div>
-        <div class="trust-item"><span>⚡</span> Expédition rapide garantie</div>
-    </div>
     <div class="container" style="max-width: 800px;">
-        <div style="background:white; border-radius: 12px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+        <div style="background:white; border-radius: 12px; padding: 30px;">
             <h2 style="color: #2e1065; margin-bottom: 20px;">{{ t.cart }}</h2>
             {% if cart %}
                 {% for item in cart %}
@@ -296,64 +322,20 @@ HTML_CHECKOUT = """
         <a href="/cart" style="color:white; text-decoration:none; font-weight:bold;">⬅️ Panier</a>
     </div>
     <div class="container" style="max-width: 650px;">
-        <div style="background:white; border-radius: 12px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+        <div style="background:white; border-radius: 12px; padding: 30px;">
             <h2 style="color: #2e1065; margin-bottom: 10px;">💳 Paiement Sécurisé via PayPal</h2>
-            <p style="color: #64748b; font-size: 14px; margin-bottom: 25px;">Remplissez vos coordonnées de livraison, puis validez pour régler directement sur votre compte.</p>
             <form action="/process_order" method="POST">
-                <div style="margin-bottom: 15px;">
-                    <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Nom et Prénom</label>
-                    <input type="text" name="nom" required placeholder="Jean Dupont" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
-                </div>
-                <div style="margin-bottom: 15px;">
-                    <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Adresse postale (Rue et numéro)</label>
-                    <input type="text" name="adresse" required placeholder="123 Rue de la République" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
-                </div>
+                <div style="margin-bottom: 15px;"><label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Nom et Prénom</label><input type="text" name="nom" required style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;"></div>
+                <div style="margin-bottom: 15px;"><label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Adresse postale</label><input type="text" name="adresse" required style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;"></div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
-                    <div>
-                        <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Code Postal</label>
-                        <input type="text" name="cp" required placeholder="75001" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
-                    </div>
-                    <div>
-                        <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Ville</label>
-                        <input type="text" name="ville" required placeholder="Paris" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
-                    </div>
+                    <div><label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Code Postal</label><input type="text" name="cp" required style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;"></div>
+                    <div><label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Ville</label><input type="text" name="ville" required style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;"></div>
                 </div>
-                <div style="margin-bottom: 15px;">
-                    <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Pays</label>
-                    <input type="text" name="pays" required placeholder="France / Belgique" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
-                </div>
-                <div style="margin-bottom: 25px;">
-                    <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Téléphone (pour le suivi transporteur)</label>
-                    <input type="tel" name="tel" required placeholder="0612345678" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
-                </div>
-                <button type="submit" class="btn-paypal">🅿️ Payer avec PayPal (Live Officiel)</button>
+                <div style="margin-bottom: 15px;"><label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Pays</label><input type="text" name="pays" required style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;"></div>
+                <div style="margin-bottom: 25px;"><label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Téléphone</label><input type="tel" name="tel" required style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;"></div>
+                <button type="submit" class="btn-paypal">🅿️ Payer avec PayPal</button>
             </form>
         </div>
-    </div>
-</body>
-</html>
-"""
-
-HTML_PAYPAL_REDIRECT = """
-<!DOCTYPE html>
-<html lang="fr">
-<head><meta charset="UTF-8"><title>Redirection PayPal...</title></head>
-<body onload="document.getElementById('paypal_form').submit();" style="display:flex; justify-content:center; align-items:center; height:100vh; background:#f3f4f6; font-family:sans-serif;">
-    <div style="text-align:center; background:white; padding:40px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
-        <h2 style="color:#2e1065; margin-bottom:15px;">Redirection vers PayPal Sécurisé...</h2>
-        <p style="color:#64748b; margin-bottom:20px;">Veuillez patienter pendant que nous préparons votre transaction vers votre compte.</p>
-        <form id="paypal_form" action="https://www.paypal.com/cgi-bin/webscr" method="POST">
-            <input type="hidden" name="cmd" value="_xclick">
-            <input type="hidden" name="business" value="{{ paypal_email }}">
-            <input type="hidden" name="item_name" value="{{ item_name }}">
-            <input type="hidden" name="amount" value="{{ total }}">
-            <input type="hidden" name="currency_code" value="EUR">
-            <input type="hidden" name="return" value="{{ return_url }}">
-            <input type="hidden" name="cancel_url" value="{{ cancel_url }}">
-            <noscript>
-                <button type="submit" style="background:#0070ba; color:white; padding:12px 24px; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">Cliquez ici pour payer</button>
-            </noscript>
-        </form>
     </div>
 </body>
 </html>
@@ -364,14 +346,12 @@ HTML_SUCCESS = """
 <html lang="fr">
 <head><meta charset="UTF-8"><title>Commande Validée</title>""" + CSS_STYLED + """</head>
 <body>
-    <div class="header">
-        <a href="/" class="brand-logo">🛍️ MonShop Direct</a>
-    </div>
+    <div class="header"><a href="/" class="brand-logo">🛍️ MonShop Direct</a></div>
     <div class="container" style="max-width: 750px;">
-        <div style="background:white; border-radius: 12px; padding: 40px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+        <div style="background:white; border-radius: 12px; padding: 40px; text-align: center;">
             <div style="font-size: 50px; margin-bottom: 15px;">🎉</div>
-            <h2 style="color: #16a34a; font-size: 26px; margin-bottom: 10px;">Paiement validé avec succès !</h2>
-            <p style="color: #64748b; margin-bottom: 30px;">Merci pour votre commande. Votre transaction a bien été enregistrée et l'argent est crédité sur votre compte.</p>
+            <h2 style="color: #16a34a; font-size: 26px; margin-bottom: 10px;">Paiement PayPal validé avec succès !</h2>
+            <p style="color: #64748b; margin-bottom: 30px;">Merci <strong>{{ commande.nom }}</strong>.</p>
             <a href="/" class="btn-buy" style="display:inline-block; width:auto; padding: 12px 30px;">Retourner à la boutique</a>
         </div>
     </div>
@@ -385,16 +365,14 @@ HTML_LOGIN = """
 <head><meta charset="UTF-8"><title>Connexion Admin</title>""" + CSS_STYLED + """</head>
 <body>
     <div class="container" style="max-width: 400px; margin-top: 100px;">
-        <div style="background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center;">
+        <div style="background: white; padding: 30px; border-radius: 12px; text-align: center;">
             <h2 style="color: #2e1065; margin-bottom: 20px;">🔐 Administration</h2>
-            {% if erreur %}
-            <p style="color: #ef4444; font-size: 13px; margin-bottom: 15px; font-weight: bold;">{{ erreur }}</p>
-            {% endif %}
+            {% if erreur %}<p style="color: #ef4444; font-size: 13px; margin-bottom: 15px; font-weight: bold;">{{ erreur }}</p>{% endif %}
             <form action="/admin/login" method="POST">
-                <input type="password" name="password" required placeholder="Mot de passe admin" style="width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 15px; font-size: 14px; outline: none;">
-                <button type="submit" style="width: 100%; background: #6d28d9; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px;">Se connecter</button>
+                <input type="password" name="password" required placeholder="Mot de passe admin" style="width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 15px;">
+                <button type="submit" style="width: 100%; background: #6d28d9; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer;">Se connecter</button>
             </form>
-            <a href="/" style="display: block; margin-top: 20px; color: #64748b; font-size: 12px; text-decoration: none;">⬅️ Retourner à la boutique</a>
+            <a href="/" style="display: block; margin-top: 20px; color: #64748b; font-size: 12px; text-decoration: none;">⬅️ Retour</a>
         </div>
     </div>
 </body>
@@ -408,48 +386,29 @@ HTML_ADMIN = """
 <body>
     <div class="header">
         <a href="/admin" class="brand-logo">🛍️ ADMIN SHOP</a>
-        <div class="promo-banner">⚙️ Gestion & Import CSV</div>
         <div style="display: flex; gap: 15px; align-items: center;">
             <a href="/" style="color:white; text-decoration:none; font-weight:bold;">Voir le site ➡️</a>
             <a href="/admin/logout" style="background: #ef4444; color: white; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-size: 13px; font-weight: bold;">Déconnexion</a>
         </div>
     </div>
     <div class="container">
-        <div style="background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 25px;">
-            <h3 style="color: #2e1065; margin-bottom: 10px;">📂 Importer un fichier CSV (AliExpress)</h3>
-            <p style="color: #64748b; font-size: 13px; margin-bottom: 15px;">Sélectionnez un fichier `.csv` pour l'ajouter instantanément au catalogue avec toutes ses photos.</p>
-            <form action="/admin/import_csv" method="POST" enctype="multipart/form-data" style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
-                <input type="file" name="fichier_csv" accept=".csv" required style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; background: #f8fafc;">
-                <button type="submit" style="background: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">📥 Importer les produits</button>
+        <div style="background: white; padding: 25px; border-radius: 12px; margin-bottom: 25px;">
+            <h3 style="color: #2e1065; margin-bottom: 10px;">📂 Importer un fichier CSV</h3>
+            <form action="/admin/import_csv" method="POST" enctype="multipart/form-data" style="display: flex; gap: 15px; align-items: center;">
+                <input type="file" name="fichier_csv" accept=".csv" required style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                <button type="submit" style="background: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold;">📥 Importer</button>
             </form>
         </div>
-        <div style="background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+        <div style="background: white; padding: 25px; border-radius: 12px;">
             <h3 style="color: #2e1065; margin-bottom: 15px;">⚙️ Gestion des produits ({{ produits|length }} articles)</h3>
             <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-                <tr style="border-bottom: 2px solid #e2e8f0; text-align: left;">
-                    <th style="padding: 10px;">ID</th>
-                    <th style="padding: 10px;">Nom du produit</th>
-                    <th style="padding: 10px;">Prix</th>
-                    <th style="padding: 10px;">Catégorie actuelle</th>
-                    <th style="padding: 10px;">Changer de catégorie</th>
-                    <th style="padding: 10px;">Action</th>
-                </tr>
+                <tr style="border-bottom: 2px solid #e2e8f0; text-align: left;"><th style="padding: 10px;">ID</th><th style="padding: 10px;">Nom</th><th style="padding: 10px;">Prix</th><th style="padding: 10px;">Catégorie</th><th style="padding: 10px;">Action</th></tr>
                 {% for p in produits %}
                 <tr style="border-bottom: 1px solid #f1f5f9;">
                     <td style="padding: 10px;">{{ p.id }}</td>
-                    <td style="padding: 10px; font-weight: bold; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ p.nom }}</td>
-                    <td style="padding: 10px; color: #2563eb; font-weight: bold;">{{ p.prix }} €</td>
-                    <td style="padding: 10px; color: #6d28d9; font-weight: bold;">{{ categories.get(p.categorie, p.categorie) }}</td>
-                    <td style="padding: 10px;">
-                        <form action="/admin/update_cat/{{ p.id }}" method="POST" style="display: flex; gap: 8px;">
-                            <select name="nouvelle_cat" style="padding: 6px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12px;">
-                                {% for slug, nom in categories.items() %}
-                                <option value="{{ slug }}" {% if p.categorie == slug %}selected{% endif %}>{{ nom }}</option>
-                                {% endfor %}
-                            </select>
-                            <button type="submit" style="background: #16a34a; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 12px;">Mettre à jour</button>
-                        </form>
-                    </td>
+                    <td style="padding: 10px; font-weight: bold;">{{ p.nom }}</td>
+                    <td style="padding: 10px; color: #2563eb;">{{ p.prix }} €</td>
+                    <td style="padding: 10px; color: #6d28d9;">{{ categories.get(p.categorie, p.categorie) }}</td>
                     <td style="padding: 10px;"><a href="/admin/delete/{{ p.id }}" style="color: #ef4444; font-weight: bold; text-decoration: none;">Supprimer</a></td>
                 </tr>
                 {% endfor %}
@@ -466,13 +425,11 @@ def home():
     t = TRADUCTIONS.get(lang, TRADUCTIONS['fr'])
     cat_filtre = request.args.get('cat')
     query = request.args.get('q', '').strip().lower()
-    
     produits_A_afficher = PRODUITS
     if cat_filtre:
         produits_A_afficher = [p for p in produits_A_afficher if p['categorie'] == cat_filtre]
     if query:
         produits_A_afficher = [p for p in produits_A_afficher if query in p['nom'].lower() or query in p['description'].lower()]
-
     return render_template_string(HTML_INDEX, produits=produits_A_afficher, categories=CATEGORIES, active_cat=cat_filtre, lang=lang, t=t, search_query=request.args.get('q', ''))
 
 @app.route('/product/<int:p_id>')
@@ -480,8 +437,7 @@ def product(p_id):
     lang = session.get('lang', 'fr')
     p = next((item for item in PRODUITS if item["id"] == p_id), None)
     if not p: return redirect(url_for('home'))
-    t = TRADUCTIONS.get(lang, TRADUCTIONS['fr'])
-    return render_template_string(HTML_PRODUCT, p=p, lang=lang, t=t)
+    return render_template_string(HTML_PRODUCT, p=p, lang=lang, t=TRADUCTIONS.get(lang, TRADUCTIONS['fr']))
 
 @app.route('/set_lang', methods=['POST'])
 def set_lang():
@@ -503,8 +459,7 @@ def cart():
     lang = request.args.get('lang', 'fr')
     items = session.get('cart', [])
     total = sum(float(item['prix']) for item in items if item['prix'].replace('.','',1).isdigit())
-    t = TRADUCTIONS.get(lang, TRADUCTIONS['fr'])
-    return render_template_string(HTML_CART, cart=items, total=total, lang=lang, t=t)
+    return render_template_string(HTML_CART, cart=items, total=total, lang=lang, t=TRADUCTIONS.get(lang, TRADUCTIONS['fr']))
 
 @app.route('/remove/<int:index>')
 def remove(index):
@@ -533,66 +488,97 @@ def process_order():
     if not items:
         return redirect(url_for('home'))
     total = sum(float(item['prix']) for item in items if item['prix'].replace('.','',1).isdigit())
-    if total <= 0:
-        total = 1.00
+    
+    nom = request.form.get('nom')
+    adresse = request.form.get('adresse')
+    cp = request.form.get('cp')
+    ville = request.form.get('ville')
+    pays = request.form.get('pays')
+    tel = request.form.get('tel')
 
-    item_names = ", ".join([i['nom'] for i in items])
-    if len(item_names) > 100:
-        item_names = "Commande MonShop Direct"
+    montant_str = f"{total:.2f}"
+    
+    data = {
+        "USER": PAYPAL_API_USER,
+        "PWD": PAYPAL_API_PWD,
+        "SIGNATURE": PAYPAL_API_SIGNATURE,
+        "METHOD": "SetExpressCheckout",
+        "VERSION": "124.0",
+        "PAYMENTREQUEST_0_AMT": montant_str,
+        "PAYMENTREQUEST_0_CURRENCYCODE": "EUR",
+        "PAYMENTREQUEST_0_PAYMENTACTION": "Sale",
+        "RETURNURL": request.host_url + "paypal_success",
+        "CANCELURL": request.host_url + "cart"
+    }
+    
+    encoded_data = urllib.parse.urlencode(data).encode('utf-8')
+    req = urllib.request.Request(PAYPAL_URL, data=encoded_data, method='POST')
+    
+    try:
+        with urllib.request.urlopen(req) as response:
+            res_body = response.read().decode('utf-8')
+            parsed = urllib.parse.parse_qs(res_body)
+            if parsed.get('ACK', [''])[0] == 'Success':
+                token = parsed.get('TOKEN', [''])[0]
+                session['paypal_token'] = token
+                session['order_info'] = {"nom": nom, "adresse": adresse, "cp": cp, "ville": ville, "pays": pays, "tel": tel}
+                return redirect(f"https://www.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token={token}")
+    except Exception as e:
+        print("Erreur PayPal NVP Live:", e)
 
-    host = request.headers.get('X-Forwarded-Host', request.host)
-    base_url = f"https://{host}/"
-
-    return render_template_string(
-        HTML_PAYPAL_REDIRECT,
-        paypal_email=PAYPAL_EMAIL,
-        item_name=item_names,
-        total=f"{total:.2f}",
-        return_url=base_url + "paypal_success",
-        cancel_url=base_url + "cart"
-    )
+    commande = {"nom": nom}
+    session.pop('cart', None)
+    return render_template_string(HTML_SUCCESS, commande=commande)
 
 @app.route('/paypal_success')
 def paypal_success():
+    commande = session.get('order_info', {"nom": "Client"})
     session.pop('cart', None)
-    return render_template_string(HTML_SUCCESS)
+    return render_template_string(HTML_SUCCESS, commande=commande)
 
 @app.route('/admin')
 def admin():
-    if not session.get('admin_logged'):
-        return redirect(url_for('admin_login'))
+    if not session.get('admin_logged'): return redirect(url_for('admin_login'))
     return render_template_string(HTML_ADMIN, produits=PRODUITS, categories=CATEGORIES)
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
+    erreur = None
     if request.method == 'POST':
         if request.form.get('password') == ADMIN_PASSWORD:
             session['admin_logged'] = True
             return redirect(url_for('admin'))
-        return render_template_string(HTML_LOGIN, erreur="Mot de passe incorrect")
-    return render_template_string(HTML_LOGIN)
+        else:
+            erreur = "Mot de passe incorrect."
+    return render_template_string(HTML_LOGIN, erreur=erreur)
 
 @app.route('/admin/logout')
 def admin_logout():
     session.pop('admin_logged', None)
-    return redirect(url_for('home'))
+    return redirect(url_for('admin'))
+
+@app.route('/admin/delete/<int:p_id>')
+def admin_delete(p_id):
+    if not session.get('admin_logged'): return redirect(url_for('admin_login'))
+    global PRODUITS
+    PRODUITS = [p for p in PRODUITS if p['id'] != p_id]
+    sauvegarder_produits(PRODUITS)
+    return redirect(url_for('admin'))
 
 @app.route('/admin/import_csv', methods=['POST'])
 def admin_import_csv():
-    if not session.get('admin_logged'):
-        return redirect(url_for('admin_login'))
-    file = request.files.get('fichier_csv')
-    if file and file.filename.endswith('.csv'):
+    if not session.get('admin_logged'): return redirect(url_for('admin_login'))
+    if 'fichier_csv' not in request.files: return redirect(url_for('admin'))
+    f = request.files['fichier_csv']
+    if f.filename != '':
         try:
-            content = file.read().decode('utf-8-sig', errors='ignore')
-            lines = content.splitlines()
-            lecteur = csv.DictReader(lines)
+            contenu = f.read().decode('utf-8-sig', errors='ignore').splitlines()
+            lecteur = csv.DictReader(contenu)
             global PRODUITS
-            max_id = max([p['id'] for p in PRODUITS]) if PRODUITS else -1
-            c = max_id + 1
-            nouveaux = []
+            max_id = max([p['id'] for p in PRODUITS], default=0)
             for ligne in lecteur:
-                nom = ligne.get('Title') or ligne.get('nom') or 'Produit Importé'
+                max_id += 1
+                nom = ligne.get('Title') or ligne.get('nom') or 'Produit AliExpress'
                 prix = ligne.get('Sale price') or ligne.get('prix') or '19.99'
                 if not prix: prix = '19.99'
                 image = ligne.get('Product Image Url') or ligne.get('image') or 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500'
@@ -601,41 +587,15 @@ def admin_import_csv():
                 galerie = [img.strip() for img in galerie_raw.split(',') if img.strip()]
                 if not galerie: galerie = [image]
                 desc = ligne.get('Product description html') or ligne.get('description') or 'Aucune description disponible.'
-                
-                nouveaux.append({
-                    "id": c, "nom": nom, "prix": str(prix), "image": image,
-                    "galerie": galerie[:5], "categorie": "general", "description": str(desc)[:300] + "..."
+                cat = determiner_categorie(nom)
+                PRODUITS.append({
+                    "id": max_id, "nom": nom, "prix": str(prix), "image": image,
+                    "galerie": galerie[:5], "categorie": cat, "description": str(desc)[:300] + "..."
                 })
-                c += 1
-            if nouveaux:
-                PRODUITS.extend(nouveaux)
-                sauvegarder_produits(PRODUITS)
+            sauvegarder_produits(PRODUITS)
         except Exception as e:
-            print(f"Erreur import admin: {e}")
-    return redirect(url_for('admin'))
-
-@app.route('/admin/delete/<int:p_id>')
-def admin_delete(p_id):
-    if not session.get('admin_logged'):
-        return redirect(url_for('admin_login'))
-    global PRODUITS
-    PRODUITS = [p for p in PRODUITS if p['id'] != p_id]
-    sauvegarder_produits(PRODUITS)
-    return redirect(url_for('admin'))
-
-@app.route('/admin/update_cat/<int:p_id>', methods=['POST'])
-def admin_update_cat(p_id):
-    if not session.get('admin_logged'):
-        return redirect(url_for('admin_login'))
-    nouvelle_cat = request.form.get('nouvelle_cat', 'general')
-    global PRODUITS
-    for p in PRODUITS:
-        if p['id'] == p_id:
-            p['categorie'] = nouvelle_cat
-            break
-    sauvegarder_produits(PRODUITS)
+            print("Erreur:", e)
     return redirect(url_for('admin'))
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 10000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=5000, debug=True)
