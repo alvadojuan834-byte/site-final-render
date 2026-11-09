@@ -61,32 +61,33 @@ def parser_dossier_csv():
         return []
 
     c = 0
-    for fichier in os.listdir(dossier_csv):
-        if fichier.endswith(".csv"):
-            chemin_complet = os.path.join(dossier_csv, fichier)
-            try:
-                with open(chemin_complet, mode='r', encoding='utf-8-sig', errors='ignore') as f:
-                    lecteur = csv.DictReader(f)
-                    for ligne in lecteur:
-                        nom = ligne.get('Title') or ligne.get('nom') or 'Produit MonShop'
-                        prix = ligne.get('Sale price') or ligne.get('prix') or '19.99'
-                        if not prix: prix = '19.99'
-                        image = ligne.get('Product Image Url') or ligne.get('image') or 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500'
-                        if ',' in image: image = image.split(',')[0].strip()
-                        galerie_raw = ligne.get('Main images url') or ligne.get('galerie') or ''
-                        galerie = [img.strip() for img in galerie_raw.split(',') if img.strip()]
-                        if not galerie: galerie = [image]
-                        desc = ligne.get('Product description html') or ligne.get('description') or 'Aucune description disponible.'
-                        
-                        cat = determiner_categorie(nom)
-                        
-                        produits_importes.append({
-                            "id": c, "nom": nom, "prix": str(prix), "image": image,
-                            "galerie": galerie[:5], "categorie": cat, "description": str(desc)[:300] + "..."
-                        })
-                        c += 1
-            except Exception as e:
-                print(f"Erreur lecture {fichier}: {e}")
+    # Lecture exhaustive de TOUS les fichiers et lignes sans aucune limite (Corrigé pour charger 100% du dossier)
+    fichiers = [f for f in os.listdir(dossier_csv) if f.lower().endswith(".csv")]
+    for fichier in fichiers:
+        chemin_complet = os.path.join(dossier_csv, fichier)
+        try:
+            with open(chemin_complet, mode='r', encoding='utf-8-sig', errors='ignore') as f:
+                lecteur = csv.DictReader(f)
+                for ligne in lecteur:
+                    nom = ligne.get('Title') or ligne.get('nom') or 'Produit MonShop'
+                    prix = ligne.get('Sale price') or ligne.get('prix') or '19.99'
+                    if not prix: prix = '19.99'
+                    image = ligne.get('Product Image Url') or ligne.get('image') or 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500'
+                    if ',' in image: image = image.split(',')[0].strip()
+                    galerie_raw = ligne.get('Main images url') or ligne.get('galerie') or ''
+                    galerie = [img.strip() for img in galerie_raw.split(',') if img.strip()]
+                    if not galerie: galerie = [image]
+                    desc = ligne.get('Product description html') or ligne.get('description') or 'Aucune description disponible.'
+                    
+                    cat = determiner_categorie(nom)
+                    
+                    produits_importes.append({
+                        "id": c, "nom": nom, "prix": str(prix), "image": image,
+                        "galerie": galerie[:5], "categorie": cat, "description": str(desc)[:300] + "..."
+                    })
+                    c += 1
+        except Exception as e:
+            print(f"Erreur lecture {fichier}: {e}")
     return produits_importes
 
 def charger_produits():
@@ -530,9 +531,12 @@ def cart():
 @app.route('/remove/<int:index>')
 def remove(index):
     lang = request.args.get('lang', 'fr')
-    if 'cart' in session and 0 <= index < len(session['cart']):
-        session['cart'].pop(index)
-        session.modified = True
+    if 'cart' in session:
+        cart = session['cart']
+        if 0 <= index < len(cart):
+            cart.pop(index)
+            session['cart'] = cart
+            session.modified = True
     return redirect(url_for('cart', lang=lang))
 
 @app.route('/clear')
@@ -543,34 +547,28 @@ def clear():
 
 @app.route('/checkout')
 def checkout():
-    items = session.get('cart', [])
-    if not items: return redirect(url_for('home'))
-    total = sum(float(item['prix']) for item in items if item['prix'].replace('.','',1).isdigit())
-    return render_template_string(HTML_CHECKOUT, total=total)
+    lang = request.args.get('lang', 'fr')
+    if not session.get('cart'):
+        return redirect(url_for('cart', lang=lang))
+    return render_template_string(HTML_CHECKOUT)
 
 @app.route('/process_order', methods=['POST'])
 def process_order():
-    items = session.get('cart', [])
-    if not items:
+    cart = session.get('cart', [])
+    if not cart:
         return redirect(url_for('home'))
     
-    total = sum(float(item['prix']) for item in items if item['prix'].replace('.','',1).isdigit())
-    nom = request.form.get('nom', 'Client')
-    adresse = request.form.get('adresse', '')
-    cp = request.form.get('cp', '')
-    ville = request.form.get('ville', '')
-    pays = request.form.get('pays', 'FR')
+    total = sum(float(item['prix']) for item in cart if str(item['prix']).replace('.','',1).isdigit())
     
-    # Appel API PayPal NVP Live (Production Réelle)
     nvp_data = {
         'USER': PAYPAL_API_USER,
         'PWD': PAYPAL_API_PWD,
         'SIGNATURE': PAYPAL_API_SIGNATURE,
-        'METHOD': 'SetExpressCheckout',
         'VERSION': '124.0',
+        'METHOD': 'SetExpressCheckout',
+        'PAYMENTREQUEST_0_PAYMENTACTION': 'Sale',
         'PAYMENTREQUEST_0_AMT': f"{total:.2f}",
         'PAYMENTREQUEST_0_CURRENCYCODE': 'EUR',
-        'PAYMENTREQUEST_0_PAYMENTACTION': 'Sale',
         'RETURNURL': request.host_url + 'paypal_success',
         'CANCELURL': request.host_url + 'cart'
     }
@@ -583,72 +581,127 @@ def process_order():
             res_body = response.read().decode('utf-8')
             response_params = urllib.parse.parse_qs(res_body)
             
-            if response_params.get('ACK', [''])[0].upper() in ['SUCCESS', 'SUCCESSWITHWARNING']:
+            if response_params.get('ACK', [''])[0] in ['Success', 'SuccessWithWarning']:
                 token = response_params.get('TOKEN', [''])[0]
-                session['pending_order'] = {'nom': nom, 'total': total}
-                # Redirection vers le vrai tunnel de paiement PayPal Live
                 return redirect(f"https://www.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token={token}")
             else:
-                return f"Erreur PayPal NVP Live: {res_body}", 400
+                return f"Erreur PayPal : {response_params}"
     except Exception as e:
-        return f"Erreur de communication PayPal Live: {e}", 500
+        return f"Erreur de connexion à PayPal : {e}"
 
 @app.route('/paypal_success')
 def paypal_success():
-    commande = session.pop('pending_order', {'nom': 'Client', 'total': 0})
-    session.pop('cart', None)
-    return render_template_string(HTML_SUCCESS, commande=commande)
-
-@app.route('/admin/login', methods=['POST'])
-def admin_login():
-    pwd = request.form.get('password', '')
-    if pwd == ADMIN_PASSWORD:
-        session['is_admin'] = True
-        return redirect(url_for('admin_panel'))
-    return render_template_string(HTML_LOGIN, erreur="Mot de passe incorrect")
+    token = request.args.get('token')
+    items = session.get('cart', [])
+    total = sum(float(item['prix']) for item in items if str(item['prix']).replace('.','',1).isdigit())
+    
+    nvp_data = {
+        'USER': PAYPAL_API_USER,
+        'PWD': PAYPAL_API_PWD,
+        'SIGNATURE': PAYPAL_API_SIGNATURE,
+        'VERSION': '124.0',
+        'METHOD': 'GetExpressCheckoutDetails',
+        'TOKEN': token
+    }
+    
+    encoded_data = urllib.parse.urlencode(nvp_data).encode('utf-8')
+    req = urllib.request.Request(PAYPAL_URL, data=encoded_data, method='POST')
+    
+    try:
+        with urllib.request.urlopen(req) as response:
+            res_body = response.read().decode('utf-8')
+            res_params = urllib.parse.parse_qs(res_body)
+            payer_id = res_params.get('PAYERID', [''])[0]
+            
+            do_data = {
+                'USER': PAYPAL_API_USER,
+                'PWD': PAYPAL_API_PWD,
+                'SIGNATURE': PAYPAL_API_SIGNATURE,
+                'VERSION': '124.0',
+                'METHOD': 'DoExpressCheckoutPayment',
+                'TOKEN': token,
+                'PAYERID': payer_id,
+                'PAYMENTREQUEST_0_PAYMENTACTION': 'Sale',
+                'PAYMENTREQUEST_0_AMT': f"{total:.2f}",
+                'PAYMENTREQUEST_0_CURRENCYCODE': 'EUR'
+            }
+            
+            do_encoded = urllib.parse.urlencode(do_data).encode('utf-8')
+            do_req = urllib.request.Request(PAYPAL_URL, data=do_encoded, method='POST')
+            
+            with urllib.request.urlopen(do_req) as do_resp:
+                do_body = do_resp.read().decode('utf-8')
+                do_params = urllib.parse.parse_qs(do_body)
+                
+                if do_params.get('ACK', [''])[0] in ['Success', 'SuccessWithWarning']:
+                    commande = {"nom": res_params.get('FIRSTNAME', ['Client'])[0] + " " + res_params.get('LASTNAME', [''])[0]}
+                    session.pop('cart', None)
+                    return render_template_string(HTML_SUCCESS, commande=commande)
+                else:
+                    return f"Erreur lors de la validation finale du paiement : {do_params}"
+    except Exception as e:
+        return f"Erreur lors de la transaction PayPal : {e}"
 
 @app.route('/admin')
-def admin_panel():
-    if not session.get('is_admin'):
-        return render_template_string(HTML_LOGIN)
+def admin():
+    if not session.get('admin_logged'):
+        return redirect(url_for('admin_login'))
     return render_template_string(HTML_ADMIN, produits=PRODUITS, categories=CATEGORIES)
+
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    erreur = None
+    if request.method == 'POST':
+        if request.form.get('password') == ADMIN_PASSWORD:
+            session['admin_logged'] = True
+            return redirect(url_for('admin'))
+        else:
+            erreur = "Mot de passe incorrect."
+    return render_template_string(HTML_LOGIN, erreur=erreur)
 
 @app.route('/admin/logout')
 def admin_logout():
-    session.pop('is_admin', None)
+    session.pop('admin_logged', None)
     return redirect(url_for('home'))
 
-@app.route('/admin/delete/<int:p_id>')
-def admin_delete(p_id):
-    if not session.get('is_admin'): return redirect(url_for('admin_login'))
-    global PRODUITS
-    PRODUITS = [p for p in PRODUITS if p['id'] != p_id]
-    sauvegarder_produits(PRODUITS)
-    return redirect(url_for('admin_panel'))
-
 @app.route('/admin/update_cat/<int:p_id>', methods=['POST'])
-def admin_update_cat(p_id):
-    if not session.get('is_admin'): return redirect(url_for('admin_login'))
-    nouvelle_cat = request.form.get('nouvelle_cat', 'general')
-    global PRODUITS
+def update_cat(p_id):
+    if not session.get('admin_logged'):
+        return redirect(url_for('admin_login'))
+    nouvelle_cat = request.form.get('nouvelle_cat')
     for p in PRODUITS:
         if p['id'] == p_id:
             p['categorie'] = nouvelle_cat
+            break
     sauvegarder_produits(PRODUITS)
-    return redirect(url_for('admin_panel'))
+    return redirect(url_for('admin'))
+
+@app.route('/admin/delete/<int:p_id>')
+def delete_product(p_id):
+    if not session.get('admin_logged'):
+        return redirect(url_for('admin_login'))
+    global PRODUITS
+    PRODUITS = [p for p in PRODUITS if p['id'] != p_id]
+    sauvegarder_produits(PRODUITS)
+    return redirect(url_for('admin'))
 
 @app.route('/admin/import_csv', methods=['POST'])
 def admin_import_csv():
-    if not session.get('is_admin'): return redirect(url_for('admin_login'))
-    fichier = request.files.get('fichier_csv')
-    if fichier:
-        dossier_csv = r"C:\csv.aliexpress"
-        os.makedirs(dossier_csv, exist_ok=True)
-        chemin = os.path.join(dossier_csv, fichier.filename)
-        fichier.save(chemin)
-        global PRODUITS
-        PRODUITS = charger_produits()
-    return redirect(url_for('admin_panel'))
+    if not session.get('admin_logged'):
+        return redirect(url_for('admin_login'))
+    
+    if 'fichier_csv' in request.files:
+        f = request.files['fichier_csv']
+        if f.filename != '':
+            dossier_csv = r"C:\csv.aliexpress"
+            os.makedirs(dossier_csv, exist_ok=True)
+            chemin_cible = os.path.join(dossier_csv, f.filename)
+            f.save(chemin_cible)
+            
+            global PRODUITS
+            PRODUITS = charger_produits()
+            
+    return redirect(url_for('admin'))
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000, debug=True)
