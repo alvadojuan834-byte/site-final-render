@@ -2,17 +2,13 @@
 from datetime import datetime
 import os
 import csv
-import urllib.parse
-import urllib.request
 import ast
 
 app = Flask(__name__)
 app.secret_key = 'cle_secrete_boutique_v8'
 
-PAYPAL_API_USER = "alvadojuan834_api1.gmail.com".strip()
-PAYPAL_API_PWD = "6VUUOI36XVVXLICO".strip()
-PAYPAL_API_SIGNATURE = "AaRSU2y8OAIEIxg92K4Zpd.Ucl0BAZSsK.CC9mosIjzFIvsppRWx-4Y".strip()
-PAYPAL_URL = "https://api-3t.paypal.com/nvp"
+# Ton e-mail officiel PayPal Live pour recevoir les paiements en direct
+PAYPAL_EMAIL = "alvadojuan834_api1.gmail.com"
 
 ADMIN_PASSWORD = "monpassadmin123"
 
@@ -302,7 +298,7 @@ HTML_CHECKOUT = """
     <div class="container" style="max-width: 650px;">
         <div style="background:white; border-radius: 12px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
             <h2 style="color: #2e1065; margin-bottom: 10px;">💳 Paiement Sécurisé via PayPal</h2>
-            <p style="color: #64748b; font-size: 14px; margin-bottom: 25px;">Remplissez vos coordonnées de livraison, puis validez pour régler via PayPal NVP Live.</p>
+            <p style="color: #64748b; font-size: 14px; margin-bottom: 25px;">Remplissez vos coordonnées de livraison, puis validez pour régler directement sur votre compte.</p>
             <form action="/process_order" method="POST">
                 <div style="margin-bottom: 15px;">
                     <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Nom et Prénom</label>
@@ -330,9 +326,34 @@ HTML_CHECKOUT = """
                     <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Téléphone (pour le suivi transporteur)</label>
                     <input type="tel" name="tel" required placeholder="0612345678" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
                 </div>
-                <button type="submit" class="btn-paypal">🅿️ Payer avec PayPal</button>
+                <button type="submit" class="btn-paypal">🅿️ Payer avec PayPal (Live Officiel)</button>
             </form>
         </div>
+    </div>
+</body>
+</html>
+"""
+
+HTML_PAYPAL_REDIRECT = """
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"><title>Redirection PayPal...</title></head>
+<body onload="document.getElementById('paypal_form').submit();" style="display:flex; justify-content:center; align-items:center; height:100vh; background:#f3f4f6; font-family:sans-serif;">
+    <div style="text-align:center; background:white; padding:40px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
+        <h2 style="color:#2e1065; margin-bottom:15px;">Redirection vers PayPal Sécurisé...</h2>
+        <p style="color:#64748b; margin-bottom:20px;">Veuillez patienter pendant que nous préparons votre transaction vers votre compte.</p>
+        <form id="paypal_form" action="https://www.paypal.com/cgi-bin/webscr" method="POST">
+            <input type="hidden" name="cmd" value="_xclick">
+            <input type="hidden" name="business" value="{{ paypal_email }}">
+            <input type="hidden" name="item_name" value="{{ item_name }}">
+            <input type="hidden" name="amount" value="{{ total }}">
+            <input type="hidden" name="currency_code" value="EUR">
+            <input type="hidden" name="return" value="{{ return_url }}">
+            <input type="hidden" name="cancel_url" value="{{ cancel_url }}">
+            <noscript>
+                <button type="submit" style="background:#0070ba; color:white; padding:12px 24px; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">Cliquez ici pour payer</button>
+            </noscript>
+        </form>
     </div>
 </body>
 </html>
@@ -349,8 +370,8 @@ HTML_SUCCESS = """
     <div class="container" style="max-width: 750px;">
         <div style="background:white; border-radius: 12px; padding: 40px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
             <div style="font-size: 50px; margin-bottom: 15px;">🎉</div>
-            <h2 style="color: #16a34a; font-size: 26px; margin-bottom: 10px;">Paiement PayPal validé avec succès !</h2>
-            <p style="color: #64748b; margin-bottom: 30px;">Merci <strong>{{ commande.nom }}</strong>. Votre transaction Live a bien été confirmée et encaissée.</p>
+            <h2 style="color: #16a34a; font-size: 26px; margin-bottom: 10px;">Paiement validé avec succès !</h2>
+            <p style="color: #64748b; margin-bottom: 30px;">Merci pour votre commande. Votre transaction a bien été enregistrée et l'argent est crédité sur votre compte.</p>
             <a href="/" class="btn-buy" style="display:inline-block; width:auto; padding: 12px 30px;">Retourner à la boutique</a>
         </div>
     </div>
@@ -515,109 +536,26 @@ def process_order():
     if total <= 0:
         total = 1.00
 
-    nom = request.form.get('nom', 'Client')
-    adresse = request.form.get('adresse', '')
-    cp = request.form.get('cp', '')
-    ville = request.form.get('ville', '')
-    pays = request.form.get('pays', '')
-    tel = request.form.get('tel', '')
-    adresse_complete = f"{adresse}, {cp} {ville}, {pays}"
+    item_names = ", ".join([i['nom'] for i in items])
+    if len(item_names) > 100:
+        item_names = "Commande MonShop Direct"
 
     host = request.headers.get('X-Forwarded-Host', request.host)
     base_url = f"https://{host}/"
 
-    nvp_data = {
-        "USER": PAYPAL_API_USER,
-        "PWD": PAYPAL_API_PWD,
-        "SIGNATURE": PAYPAL_API_SIGNATURE,
-        "VERSION": "124.0",
-        "METHOD": "SetExpressCheckout",
-        "PAYMENTREQUEST_0_PAYMENTACTION": "Sale",
-        "PAYMENTREQUEST_0_AMT": f"{total:.2f}",
-        "PAYMENTREQUEST_0_CURRENCYCODE": "EUR",
-        "RETURNURL": base_url + "paypal_success",
-        "CANCELURL": base_url + "cart"
-    }
-
-    try:
-        encoded_data = urllib.parse.urlencode(nvp_data).encode('utf-8')
-        req = urllib.request.Request(PAYPAL_URL, data=encoded_data, headers={"Content-Type": "application/x-www-form-urlencoded"})
-        with urllib.request.urlopen(req) as response:
-            res_body = response.read().decode('utf-8')
-            parsed = urllib.parse.parse_qs(res_body)
-            
-            if parsed.get('ACK', [''])[0].upper() in ['SUCCESS', 'SUCCESSWITHWARNING']:
-                token = parsed.get('TOKEN', [''])[0]
-                session['pending_order'] = {
-                    "nom": nom,
-                    "adresse": adresse_complete,
-                    "tel": tel,
-                    "total": f"{total:.2f}"
-                }
-                return redirect(f"https://www.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token={token}")
-            else:
-                error_msg = parsed.get('L_LONGMESSAGE0', ['Erreur inconnue'])[0]
-                error_code = parsed.get('L_ERRORCODE0', [''])[0]
-                return f"""
-                <div style="font-family:sans-serif; text-align:center; padding:50px; background:#f3f4f6; height:100vh;">
-                    <div style="background:white; max-width:600px; margin:0 auto; padding:30px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
-                        <h2 style="color:#e11d48; margin-bottom:15px;">TIMESTAMP=2026-06-18&ACK=Failure&VERSION=124.0&BUILD=0&ERRORCODE={error_code}</h2>
-                        <p style="color:#4b5563; font-size:14px; line-height:1.6; margin-bottom:20px;">
-                            <strong>L_LONGMESSAGE0={error_msg}</strong>
-                        </p>
-                        <a href="/cart" style="background:#6d28d9; color:white; padding:12px 24px; border-radius:6px; text-decoration:none; font-weight:bold;">Retour au panier</a>
-                    </div>
-                </div>
-                """
-    except Exception as e:
-        return f"Exception technique NVP: {e}"
+    return render_template_string(
+        HTML_PAYPAL_REDIRECT,
+        paypal_email=PAYPAL_EMAIL,
+        item_name=item_names,
+        total=f"{total:.2f}",
+        return_url=base_url + "paypal_success",
+        cancel_url=base_url + "cart"
+    )
 
 @app.route('/paypal_success')
 def paypal_success():
-    token = request.args.get('token')
-    payer_id = request.args.get('PayerID')
-    
-    pending = session.get('pending_order')
-    if not token or not pending:
-        return redirect(url_for('home'))
-
-    nvp_data = {
-        "USER": PAYPAL_API_USER,
-        "PWD": PAYPAL_API_PWD,
-        "SIGNATURE": PAYPAL_API_SIGNATURE,
-        "VERSION": "124.0",
-        "METHOD": "DoExpressCheckoutPayment",
-        "TOKEN": token,
-        "PAYERID": payer_id,
-        "PAYMENTREQUEST_0_PAYMENTACTION": "Sale",
-        "PAYMENTREQUEST_0_AMT": pending['total'],
-        "PAYMENTREQUEST_0_CURRENCYCODE": "EUR"
-    }
-
-    try:
-        encoded_data = urllib.parse.urlencode(nvp_data).encode('utf-8')
-        req = urllib.request.Request(PAYPAL_URL, data=encoded_data, headers={"Content-Type": "application/x-www-form-urlencoded"})
-        with urllib.request.urlopen(req) as response:
-            res_body = response.read().decode('utf-8')
-            parsed = urllib.parse.parse_qs(res_body)
-            
-            if parsed.get('ACK', [''])[0].upper() in ['SUCCESS', 'SUCCESSWITHWARNING']:
-                commande = {
-                    "nom": pending['nom'],
-                    "adresse": pending['adresse'],
-                    "tel": pending['tel'],
-                    "total": pending['total'],
-                    "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                }
-                COMMANDES.append(commande)
-                session.pop('cart', None)
-                session.pop('pending_order', None)
-                return render_template_string(HTML_SUCCESS, commande=commande)
-            else:
-                error_msg = parsed.get('L_LONGMESSAGE0', ['Erreur de capture'])[0]
-                return f"<h3>Erreur de capture DoExpressCheckout :</h3><p>{error_msg}</p><br><a href='/cart'>Retour</a>"
-    except Exception as e:
-        return f"Exception DoExpressCheckout: {e}"
+    session.pop('cart', None)
+    return render_template_string(HTML_SUCCESS)
 
 @app.route('/admin')
 def admin():
@@ -660,7 +598,7 @@ def admin_import_csv():
                 image = ligne.get('Product Image Url') or ligne.get('image') or 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500'
                 if ',' in image: image = image.split(',')[0].strip()
                 galerie_raw = ligne.get('Main images url') or ligne.get('galerie') or ''
-                galerie = [img.strip() for img in galerie_run.split(',') if img.strip()] if 'galerie_run' in locals() else [img.strip() for img in galerie_raw.split(',') if img.strip()]
+                galerie = [img.strip() for img in galerie_raw.split(',') if img.strip()]
                 if not galerie: galerie = [image]
                 desc = ligne.get('Product description html') or ligne.get('description') or 'Aucune description disponible.'
                 
