@@ -588,7 +588,6 @@ def admin_import_csv():
         global PRODUITS
         PRODUITS = charger_produits()
 
-    # Redirection propre vers l'admin sans code d'erreur brut
     return redirect(url_for('admin'))
 
 @app.route('/admin/update_cat/<int:p_id>', methods=['POST'])
