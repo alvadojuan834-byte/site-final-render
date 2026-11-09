@@ -25,12 +25,12 @@ TRADUCTIONS = {
 }
 
 CATEGORIES = {
-    "telephonie": "📱 Téléphonie & Audio",
-    "chauffage": "🔥 Chauffage & Maison",
-    "cuisine": "🍳 Cuisine & Ustensiles",
-    "sport": "⚽ Sport & Loisirs",
-    "eclairage": "💡 Éclairage & Auto",
-    "general": "✨ Tendances Générales"
+    "gaming": "🎮 Gaming & Wifi",
+    "pokemon": "⚡ Pokémon & Cartes",
+    "bijoux": "💍 Bijoux & Accessoires",
+    "mode": "👗 Mode Homme & Femme",
+    "hightech": "📱 High-Tech & Tendance",
+    "general": "✨ Divers & Tout"
 }
 
 LOCAL_STATE_FILE = r"C:\boutique_propre\produits_etat.csv"
@@ -57,10 +57,10 @@ def charger_produits():
     dossier_csv = r"C:\csv.aliexpress"
     if not os.path.exists(dossier_csv):
         return [{
-            "id": 0, "nom": "Radiateur Électrique à Convection 2000W", "prix": "49.99",
-            "image": "https://images.unsplash.com/photo-1585338107529-13afc5f02586?w=500",
-            "galerie": ["https://images.unsplash.com/photo-1585338107529-13afc5f02586?w=500"],
-            "categorie": "chauffage", "description": "Description par défaut."
+            "id": 0, "nom": "Manette Gaming Sans Fil Pro RGB", "prix": "29.99",
+            "image": "https://images.unsplash.com/photo-1600861194942-f883de0ac966?w=500",
+            "galerie": ["https://images.unsplash.com/photo-1600861194942-f883de0ac966?w=500"],
+            "categorie": "gaming", "description": "Matériel gaming haute performance."
         }]
 
     c = 0
@@ -71,7 +71,7 @@ def charger_produits():
                 with open(chemin_complet, mode='r', encoding='utf-8-sig') as f:
                     lecteur = csv.DictReader(f)
                     for ligne in lecteur:
-                        nom = ligne.get('Title', 'Produit AliExpress')
+                        nom = ligne.get('Title', 'Produit Tendance')
                         prix = ligne.get('Sale price', '19.99')
                         if not prix: prix = '19.99'
                         image = ligne.get('Product Image Url', 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500')
@@ -176,7 +176,7 @@ HTML_INDEX = """
             <a href="/?cat={{ slug }}&lang={{ lang }}{% if search_query %}&q={{ search_query }}{% endif %}" class="cat-tag {% if active_cat == slug %}active{% endif %}">{{ nom }}</a>
             {% endfor %}
         </div>
-        <div class="sec-header">🚀 Catalogue AliExpress {% if active_cat %}- {{ categories.get(active_cat, '') }}{% endif %} ({{ produits|length }} articles)</div>
+        <div class="sec-header">🚀 Catalogue Produits {% if active_cat %}- {{ categories.get(active_cat, '') }}{% endif %} ({{ produits|length }} articles)</div>
         <div class="grid">
             {% for p in produits %}
             <div class="card">
