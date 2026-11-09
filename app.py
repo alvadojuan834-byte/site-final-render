@@ -69,7 +69,6 @@ def parser_dossier_csv():
     return produits_importes
 
 def charger_produits():
-    # Si le fichier d'état local existe déjà, on le charge directement pour garder les modifications et imports enregistrés
     if os.path.exists(LOCAL_STATE_FILE):
         produits = []
         try:
@@ -91,7 +90,6 @@ def charger_produits():
         except:
             pass
 
-    # Sinon, on parse le dossier CSV et on sauvegarde le tout durablement dans produits_etat.csv
     produits_importes = parser_dossier_csv()
     if not produits_importes:
         produits_importes = [{
