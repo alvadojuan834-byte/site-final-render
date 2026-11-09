@@ -1,16 +1,18 @@
-﻿from flask import Flask, render_template_string, request, redirect, url_for, session, jsonify
+﻿from flask import Flask, render_template_string, request, redirect, url_for, session
 from datetime import datetime
 import os
 import csv
+import urllib.parse
+import urllib.request
 import ast
-import requests
 
 app = Flask(__name__)
 app.secret_key = 'cle_secrete_boutique_v8'
 
-PAYPAL_CLIENT_ID = "BAAMpkqm_4fv14OBn_OdU48IV0WotsovJC6TnqVDGoqp6mGVOQoQR6oT1IE3pVv0lf1vSCxUz00r7qtBI"
-PAYPAL_CLIENT_SECRET = "EGEDoRcorRwLtDnDz7B0ZEhbdGDl5oFymz-wOF18KTLUDxNAPOLOTc5KO0tFodbhYjjJEYKa"
-PAYPAL_URL = "https://api-m.paypal.com"
+PAYPAL_API_USER = "alvadojuan834_api1.gmail.com"
+PAYPAL_API_PWD = "6VUUOI36XVVXLICO"
+PAYPAL_API_SIGNATURE = "AaRSU2y8OAIEIxg92K4Zpd.Ucl0BAZSsK.CC9mosIjzFIvsppRWx-4Y"
+PAYPAL_URL = "https://api-3t.paypal.com/nvp"
 
 ADMIN_PASSWORD = "monpassadmin123"
 
@@ -19,7 +21,7 @@ TRADUCTIONS = {
     "be": {"shop": "MonShop Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Panier", "all": "Toutes les catégories", "buy": "Acheter", "total": "Total", "checkout": "🔒 Valider la commande", "empty": "Votre panier est vide wesh.", "color": "Couleur", "size": "Taille", "desc": "Description du produit", "search_placeholder": "Rechercher un produit..."},
     "en": {"shop": "MonShop Direct", "promo": "🔥 AliExpress Boost Promos 🔥", "cart": "Cart", "all": "All categories", "buy": "Buy Now", "total": "Total", "checkout": "🔒 Checkout", "empty": "Your cart is empty.", "color": "Color", "size": "Size", "desc": "Product description", "search_placeholder": "Search a product..."},
     "de": {"shop": "MonShop Direct", "promo": "🔥 AliExpress Boost Angebote 🔥", "cart": "Warenkorb", "all": "Alle Kategorien", "buy": "Kaufen", "total": "Gesamt", "checkout": "🔒 Zur Kasse", "empty": "Ihr Warenkorb ist leer.", "color": "Farbe", "size": "Größe", "desc": "Produktbeschreibung", "search_placeholder": "Produkt suchen..."},
-    "es": {"shop": "MonShop Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Carrito", "all": "Todas las categorías", "buy": "Comprar", "total": "Total", "checkout": "🔒 Tramitar pedido", "empty": "Tu carrito está vacío.", "color": "Color", "talla": "Talla", "desc": "Descripción du produit", "search_placeholder": "Buscar un producto..."},
+    "es": {"shop": "MonShop Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Carrito", "all": "Todas las categorías", "buy": "Comprar", "total": "Total", "checkout": "🔒 Tramitar pedido", "empty": "Tu carrito está vacío.", "color": "Color", "talla": "Talla", "desc": "Descripción del producto", "search_placeholder": "Buscar un producto..."},
     "nl": {"shop": "MonShop Direct", "promo": "🔥 AliExpress Boost Promo's 🔥", "cart": "Winkelmand", "all": "Alle categorieën", "buy": "Kopen", "total": "Totaal", "checkout": "🔒 Afrekenen", "empty": "Je winkelmand is leeg.", "color": "Kleur", "size": "Maat", "desc": "Produktbeschrijving", "search_placeholder": "Zoek een product..."}
 }
 
@@ -145,6 +147,8 @@ CSS_STYLED = """
     .card-price { font-size: 18px; font-weight: 900; color: #2563eb; margin-bottom: 12px; }
     .btn-buy { background: #6d28d9; color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; text-decoration: none; text-align: center; display: block; width: 100%; }
     .btn-buy:hover { background: #581c87; }
+    .btn-paypal { background: #0070ba; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; text-decoration: none; text-align: center; display: block; width: 100%; transition: background 0.2s; }
+    .btn-paypal:hover { background: #003087; }
 </style>
 """
 
@@ -215,6 +219,11 @@ HTML_PRODUCT = """
         <div class="promo-banner">{{ t.promo }}</div>
         <a href="/?lang={{ lang }}" style="color:white; text-decoration:none; font-weight:bold;">⬅️ Retour</a>
     </div>
+    <div class="top-trust-bar">
+        <div class="trust-item"><span>🔒</span> Paiement 100% sécurisé</div>
+        <div class="trust-item"><span>📦</span> Suivi des colis en temps réel</div>
+        <div class="trust-item"><span>⚡</span> Expédition rapide garantie</div>
+    </div>
     <div class="container">
         <div style="background: white; border-radius: 12px; padding: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-top: 20px;">
             <div>
@@ -249,6 +258,11 @@ HTML_CART = """
         <div class="promo-banner">{{ t.promo }}</div>
         <a href="/?lang={{ lang }}" style="color:white; text-decoration:none; font-weight:bold;">Continuer</a>
     </div>
+    <div class="top-trust-bar">
+        <div class="trust-item"><span>🔒</span> Paiement 100% sécurisé</div>
+        <div class="trust-item"><span>📦</span> Suivi des colis en temps réel</div>
+        <div class="trust-item"><span>⚡</span> Expédition rapide garantie</div>
+    </div>
     <div class="container" style="max-width: 800px;">
         <div style="background:white; border-radius: 12px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
             <h2 style="color: #2e1065; margin-bottom: 20px;">{{ t.cart }}</h2>
@@ -278,9 +292,7 @@ HTML_CART = """
 HTML_CHECKOUT = """
 <!DOCTYPE html>
 <html lang="fr">
-<head><meta charset="UTF-8"><title>Validation Commande</title>""" + CSS_STYLED + """
-<script src="https://www.paypal.com/sdk/js?client-id=BAAMpkqm_4fv14OBn_OdU48IV0WotsovJC6TnqVDGoqp6mGVOQoQR6oT1IE3pVv0lf1vSCxUz00r7qtBI&currency=EUR"></script>
-</head>
+<head><meta charset="UTF-8"><title>Validation Commande</title>""" + CSS_STYLED + """</head>
 <body>
     <div class="header">
         <a href="/" class="brand-logo">🛍️ MonShop Direct</a>
@@ -289,81 +301,39 @@ HTML_CHECKOUT = """
     </div>
     <div class="container" style="max-width: 650px;">
         <div style="background:white; border-radius: 12px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
-            <h2 style="color: #2e1065; margin-bottom: 10px;">💳 Paiement Sécurisé via PayPal (Live)</h2>
-            <form id="orderForm" style="margin-bottom: 25px;">
+            <h2 style="color: #2e1065; margin-bottom: 10px;">💳 Paiement Sécurisé via PayPal</h2>
+            <p style="color: #64748b; font-size: 14px; margin-bottom: 25px;">Remplissez vos coordonnées de livraison, puis validez pour régler via PayPal NVP.</p>
+            <form action="/process_order" method="POST">
                 <div style="margin-bottom: 15px;">
                     <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Nom et Prénom</label>
-                    <input type="text" id="nom" required placeholder="Jean Dupont" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
+                    <input type="text" name="nom" required placeholder="Jean Dupont" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
                 </div>
                 <div style="margin-bottom: 15px;">
-                    <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Adresse postale</label>
-                    <input type="text" id="adresse" required placeholder="123 Rue de la République" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
+                    <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Adresse postale (Rue et numéro)</label>
+                    <input type="text" name="adresse" required placeholder="123 Rue de la République" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                     <div>
                         <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Code Postal</label>
-                        <input type="text" id="cp" required placeholder="75001" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
+                        <input type="text" name="cp" required placeholder="75001" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
                     </div>
                     <div>
                         <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Ville</label>
-                        <input type="text" id="ville" required placeholder="Paris" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
+                        <input type="text" name="ville" required placeholder="Paris" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
                     </div>
                 </div>
                 <div style="margin-bottom: 15px;">
                     <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Pays</label>
-                    <input type="text" id="pays" required placeholder="France" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
+                    <input type="text" name="pays" required placeholder="France / Belgique" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
                 </div>
-                <div style="margin-bottom: 15px;">
-                    <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Téléphone</label>
-                    <input type="tel" id="tel" required placeholder="0612345678" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
+                <div style="margin-bottom: 25px;">
+                    <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Téléphone (pour le suivi transporteur)</label>
+                    <input type="tel" name="tel" required placeholder="0612345678" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
                 </div>
+                <button type="submit" class="btn-paypal">🅿️ Payer avec PayPal</button>
             </form>
-            <div id="paypal-button-container"></div>
         </div>
     </div>
-    <script>
-        paypal.Buttons({
-            createOrder: function(data, actions) {
-                return fetch('/api/paypal/create_order', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                }).then(res => res.json()).then(order => {
-                    if(order.id) return order.id;
-                    alert('Erreur création commande PayPal: ' + JSON.stringify(order));
-                });
-            },
-            onApprove: function(data, actions) {
-                const nom = document.getElementById('nom').value;
-                const adresse = document.getElementById('adresse').value;
-                const cp = document.getElementById('cp').value;
-                const ville = document.getElementById('ville').value;
-                const pays = document.getElementById('pays').value;
-                const tel = document.getElementById('tel').value;
-
-                if(!nom || !adresse || !cp || !ville || !pays || !tel) {
-                    alert('Remplis tous les champs de livraison avant de payer !');
-                    return;
-                }
-
-                return fetch('/api/paypal/capture_order', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        orderID: data.orderID,
-                        nom: nom,
-                        adresse: adresse + ', ' + cp + ' ' + ville + ', ' + pays,
-                        tel: tel
-                    })
-                }).then(res => res.json()).then(details => {
-                    if (details.success) {
-                        window.location.href = "/success?nom=" + encodeURIComponent(nom);
-                    } else {
-                        alert('REFUS PAYPAL : ' + JSON.stringify(details.error));
-                    }
-                });
-            }
-        }).render('#paypal-button-container');
-    </script>
 </body>
 </html>
 """
@@ -373,12 +343,14 @@ HTML_SUCCESS = """
 <html lang="fr">
 <head><meta charset="UTF-8"><title>Commande Validée</title>""" + CSS_STYLED + """</head>
 <body>
-    <div class="header"><a href="/" class="brand-logo">🛍️ MonShop Direct</a></div>
+    <div class="header">
+        <a href="/" class="brand-logo">🛍️ MonShop Direct</a>
+    </div>
     <div class="container" style="max-width: 750px;">
         <div style="background:white; border-radius: 12px; padding: 40px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
             <div style="font-size: 50px; margin-bottom: 15px;">🎉</div>
-            <h2 style="color: #16a34a; font-size: 26px; margin-bottom: 10px;">Paiement validé et encaissé !</h2>
-            <p style="color: #64748b; margin-bottom: 30px;">Merci <strong>{{ nom }}</strong>. L'argent a bien été capturé sur ton compte PayPal Live.</p>
+            <h2 style="color: #16a34a; font-size: 26px; margin-bottom: 10px;">Paiement PayPal validé avec succès !</h2>
+            <p style="color: #64748b; margin-bottom: 30px;">Merci <strong>{{ commande.nom }}</strong>. Votre transaction PayPal a bien été confirmée.</p>
             <a href="/" class="btn-buy" style="display:inline-block; width:auto; padding: 12px 30px;">Retourner à la boutique</a>
         </div>
     </div>
@@ -394,7 +366,9 @@ HTML_LOGIN = """
     <div class="container" style="max-width: 400px; margin-top: 100px;">
         <div style="background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center;">
             <h2 style="color: #2e1065; margin-bottom: 20px;">🔐 Administration</h2>
-            {% if erreur %}<p style="color: #ef4444; font-size: 13px; margin-bottom: 15px; font-weight: bold;">{{ erreur }}</p>{% endif %}
+            {% if erreur %}
+            <p style="color: #ef4444; font-size: 13px; margin-bottom: 15px; font-weight: bold;">{{ erreur }}</p>
+            {% endif %}
             <form action="/admin/login" method="POST">
                 <input type="password" name="password" required placeholder="Mot de passe admin" style="width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 15px; font-size: 14px; outline: none;">
                 <button type="submit" style="width: 100%; background: #6d28d9; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px;">Se connecter</button>
@@ -422,6 +396,7 @@ HTML_ADMIN = """
     <div class="container">
         <div style="background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 25px;">
             <h3 style="color: #2e1065; margin-bottom: 10px;">📂 Importer un fichier CSV (AliExpress)</h3>
+            <p style="color: #64748b; font-size: 13px; margin-bottom: 15px;">Sélectionnez un fichier `.csv` pour l'ajouter instantanément au catalogue avec toutes ses photos.</p>
             <form action="/admin/import_csv" method="POST" enctype="multipart/form-data" style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
                 <input type="file" name="fichier_csv" accept=".csv" required style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; background: #f8fafc;">
                 <button type="submit" style="background: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">📥 Importer les produits</button>
@@ -463,91 +438,6 @@ HTML_ADMIN = """
 </body>
 </html>
 """
-
-def get_paypal_access_token():
-    auth_url = f"{PAYPAL_URL}/v1/oauth2/token"
-    try:
-        res = requests.post(
-            auth_url,
-            auth=(PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET),
-            data={"grant_type": "client_credentials"}
-        )
-        if res.status_code == 200:
-            return res.json().get("access_token")
-    except Exception as e:
-        print("EXCEPTION TOKEN PAYPAL:", e)
-    return None
-
-@app.route('/api/paypal/create_order', methods=['POST'])
-def api_paypal_create_order():
-    items = session.get('cart', [])
-    total = sum(float(item['prix']) for item in items if item['prix'].replace('.','',1).isdigit())
-    if total <= 0:
-        total = 1.00
-
-    token = get_paypal_access_token()
-    if not token:
-        return jsonify({"error": "Impossible d'obtenir le token PayPal Live"}), 500
-
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {token}"
-    }
-    payload = {
-        "intent": "CAPTURE",
-        "purchase_units": [{
-            "amount": {
-                "currency_code": "EUR",
-                "value": f"{total:.2f}"
-            }
-        }]
-    }
-
-    res = requests.post(f"{PAYPAL_URL}/v2/checkout/orders", headers=headers, json=payload)
-    if res.status_code in [200, 201]:
-        return jsonify(res.json())
-    return jsonify({"error": res.text}), 500
-
-@app.route('/api/paypal/capture_order', methods=['POST'])
-def api_paypal_capture_order():
-    data = request.get_json()
-    order_id = data.get('orderID')
-    nom = data.get('nom', 'Client')
-    adresse = data.get('adresse', '')
-    tel = data.get('tel', '')
-
-    if not order_id:
-        return jsonify({"success": False, "error": "Order ID manquant"}), 400
-
-    token = get_paypal_access_token()
-    if not token:
-        return jsonify({"success": False, "error": "Token PayPal invalide lors de la capture"}), 500
-
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {token}"
-    }
-
-    res = requests.post(f"{PAYPAL_URL}/v2/checkout/orders/{order_id}/capture", headers=headers)
-    res_data = res.json()
-
-    if res.status_code in [200, 201] and res_data.get("status") == "COMPLETED":
-        items = session.get('cart', [])
-        total = sum(float(item['prix']) for item in items if item['prix'].replace('.','',1).isdigit())
-        
-        commande = {
-            "nom": nom,
-            "adresse": adresse,
-            "tel": tel,
-            "total": f"{total:.2f}",
-            "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "paypal_order_id": order_id
-        }
-        COMMANDES.append(commande)
-        session.pop('cart', None)
-        return jsonify({"success": True, "details": res_data})
-    
-    return jsonify({"success": False, "error": res_data}), 400
 
 @app.route('/')
 def home():
@@ -616,10 +506,103 @@ def checkout():
     total = sum(float(item['prix']) for item in items if item['prix'].replace('.','',1).isdigit())
     return render_template_string(HTML_CHECKOUT, total=total)
 
-@app.route('/success')
-def success():
-    nom = request.args.get('nom', 'Client')
-    return render_template_string(HTML_SUCCESS, nom=nom)
+@app.route('/process_order', methods=['POST'])
+def process_order():
+    items = session.get('cart', [])
+    if not items:
+        return redirect(url_for('home'))
+    total = sum(float(item['prix']) for item in items if item['prix'].replace('.','',1).isdigit())
+    if total <= 0:
+        total = 1.00
+
+    nom = request.form.get('nom', 'Client')
+    adresse = request.form.get('adresse', '')
+    cp = request.form.get('cp', '')
+    ville = request.form.get('ville', '')
+    pays = request.form.get('pays', '')
+    tel = request.form.get('tel', '')
+    adresse_complete = f"{adresse}, {cp} {ville}, {pays}"
+
+    nvp_data = {
+        "USER": PAYPAL_API_USER,
+        "PWD": PAYPAL_API_PWD,
+        "SIGNATURE": PAYPAL_API_SIGNATURE,
+        "VERSION": "124.0",
+        "METHOD": "SetExpressCheckout",
+        "PAYMENTREQUEST_0_PAYMENTACTION": "Sale",
+        "PAYMENTREQUEST_0_AMT": f"{total:.2f}",
+        "PAYMENTREQUEST_0_CURRENCYCODE": "EUR",
+        "RETURNURL": request.host_url + "paypal_success",
+        "CANCELURL": request.host_url + "cart"
+    }
+
+    try:
+        encoded_data = urllib.parse.urlencode(nvp_data).encode('utf-8')
+        req = urllib.request.Request(PAYPAL_URL, data=encoded_data, method='POST')
+        with urllib.request.urlopen(req) as response:
+            res_body = response.read().decode('utf-8')
+            parsed = urllib.parse.parse_qs(res_body)
+            
+            if parsed.get('ACK', [''])[0].upper() in ['SUCCESS', 'SUCCESSWITHWARNING']:
+                token = parsed.get('TOKEN', [''])[0]
+                session['pending_order'] = {
+                    "nom": nom,
+                    "adresse": adresse_complete,
+                    "tel": tel,
+                    "total": f"{total:.2f}"
+                }
+                redirect_url = f"https://www.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token={token}"
+                return redirect(redirect_url)
+            else:
+                return f"Erreur PayPal NVP: {res_body}"
+    except Exception as e:
+        return f"Exception PayPal: {e}"
+
+@app.route('/paypal_success')
+def paypal_success():
+    token = request.args.get('token')
+    payer_id = request.args.get('PayerID')
+    
+    pending = session.get('pending_order')
+    if not token or not pending:
+        return redirect(url_for('home'))
+
+    nvp_data = {
+        "USER": PAYPAL_API_USER,
+        "PWD": PAYPAL_API_PWD,
+        "SIGNATURE": PAYPAL_API_SIGNATURE,
+        "VERSION": "124.0",
+        "METHOD": "DoExpressCheckoutPayment",
+        "TOKEN": token,
+        "PAYERID": payer_id,
+        "PAYMENTREQUEST_0_PAYMENTACTION": "Sale",
+        "PAYMENTREQUEST_0_AMT": pending['total'],
+        "PAYMENTREQUEST_0_CURRENCYCODE": "EUR"
+    }
+
+    try:
+        encoded_data = urllib.parse.urlencode(nvp_data).encode('utf-8')
+        req = urllib.request.Request(PAYPAL_URL, data=encoded_data, method='POST')
+        with urllib.request.urlopen(req) as response:
+            res_body = response.read().decode('utf-8')
+            parsed = urllib.parse.parse_qs(res_body)
+            
+            if parsed.get('ACK', [''])[0].upper() in ['SUCCESS', 'SUCCESSWITHWARNING']:
+                commande = {
+                    "nom": pending['nom'],
+                    "adresse": pending['adresse'],
+                    "tel": pending['tel'],
+                    "total": pending['total'],
+                    "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+                COMMANDES.append(commande)
+                session.pop('cart', None)
+                session.pop('pending_order', None)
+                return render_template_string(HTML_SUCCESS, commande=commande)
+            else:
+                return f"Erreur de capture du paiement PayPal: {res_body}"
+    except Exception as e:
+        return f"Exception DoExpressCheckoutPayment: {e}"
 
 @app.route('/admin')
 def admin():
@@ -665,6 +648,7 @@ def admin_import_csv():
                 galerie = [img.strip() for img in galerie_raw.split(',') if img.strip()]
                 if not galerie: galerie = [image]
                 desc = ligne.get('Product description html') or ligne.get('description') or 'Aucune description disponible.'
+                
                 nouveaux.append({
                     "id": c, "nom": nom, "prix": str(prix), "image": image,
                     "galerie": galerie[:5], "categorie": "general", "description": str(desc)[:300] + "..."
