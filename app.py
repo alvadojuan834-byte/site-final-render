@@ -35,54 +35,64 @@ CATEGORIES = {
 
 LOCAL_STATE_FILE = r"C:\boutique_propre\produits_etat.csv"
 
-def charger_produits():
-    if os.path.exists(LOCAL_STATE_FILE):
-        produits = []
-        with open(LOCAL_STATE_FILE, mode='r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                row['id'] = int(row['id'])
-                galerie_raw = row.get('galerie', '')
-                if galerie_raw.startswith('['):
-                    try:
-                        row['galerie'] = ast.literal_eval(galerie_raw)
-                    except:
-                        row['galerie'] = [row.get('image', '')]
-                else:
-                    row['galerie'] = [img.strip() for img in galerie_raw.split(',') if img.strip()]
-                produits.append(row)
-        return produits
-
+def parser_dossier_csv():
     produits_importes = []
     dossier_csv = r"C:\csv.aliexpress"
     if not os.path.exists(dossier_csv):
-        return []
+        return produits_importes
 
     c = 0
     for fichier in os.listdir(dossier_csv):
         if fichier.endswith(".csv"):
             chemin_complet = os.path.join(dossier_csv, fichier)
             try:
-                with open(chemin_complet, mode='r', encoding='utf-8-sig') as f:
+                with open(chemin_complet, mode='r', encoding='utf-8-sig', errors='ignore') as f:
                     lecteur = csv.DictReader(f)
                     for ligne in lecteur:
-                        nom = ligne.get('Title', 'Produit Tendance')
-                        prix = ligne.get('Sale price', '19.99')
+                        nom = ligne.get('Title') or ligne.get('nom') or 'Produit Tendance'
+                        prix = ligne.get('Sale price') or ligne.get('prix') or '19.99'
                         if not prix: prix = '19.99'
-                        image = ligne.get('Product Image Url', 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500')
+                        image = ligne.get('Product Image Url') or ligne.get('image') or 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500'
                         if ',' in image: image = image.split(',')[0].strip()
-                        galerie_raw = ligne.get('Main images url', '')
+                        galerie_raw = ligne.get('Main images url') or ligne.get('galerie') or ''
                         galerie = [img.strip() for img in galerie_raw.split(',') if img.strip()]
                         if not galerie: galerie = [image]
-                        desc = ligne.get('Product description html', 'Aucune description disponible.')
+                        desc = ligne.get('Product description html') or ligne.get('description') or 'Aucune description disponible.'
+                        
                         produits_importes.append({
-                            "id": c, "nom": nom, "prix": prix, "image": image,
-                            "galerie": galerie[:5], "categorie": "general", "description": desc[:300] + "..."
+                            "id": c, "nom": nom, "prix": str(prix), "image": image,
+                            "galerie": galerie[:5], "categorie": "general", "description": str(desc)[:300] + "..."
                         })
                         c += 1
             except Exception as e:
                 print(f"Erreur lecture {fichier}: {e}")
-    sauvegarder_produits(produits_importes)
+    return produits_importes
+
+def charger_produits():
+    if os.path.exists(LOCAL_STATE_FILE):
+        produits = []
+        try:
+            with open(LOCAL_STATE_FILE, mode='r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    row['id'] = int(row['id'])
+                    galerie_raw = row.get('galerie', '')
+                    if galerie_raw.startswith('['):
+                        try:
+                            row['galerie'] = ast.literal_eval(galerie_raw)
+                        except:
+                            row['galerie'] = [row.get('image', '')]
+                    else:
+                        row['galerie'] = [img.strip() for img in galerie_raw.split(',') if img.strip()]
+                    produits.append(row)
+            if produits:
+                return produits
+        except:
+            pass
+
+    produits_importes = parser_dossier_csv()
+    if produits_importes:
+        sauvegarder_produits(produits_importes)
     return produits_importes
 
 def sauvegarder_produits(produits):
@@ -487,7 +497,10 @@ def admin_import_csv():
         chemin = os.path.join(r"C:\csv.aliexpress", fichier.filename)
         fichier.save(chemin)
         global PRODUITS
-        PRODUITS = charger_produits()
+        produits_importes = parser_dossier_csv()
+        if produits_importes:
+            PRODUITS = produits_importes
+            sauvegarder_produits(PRODUITS)
     return redirect(url_for('admin'))
 
 @app.route('/admin/update_cat/<int:p_id>', methods=['POST'])
