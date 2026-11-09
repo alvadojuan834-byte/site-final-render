@@ -35,9 +35,8 @@ CATEGORIES = {
 
 LOCAL_STATE_FILE = r"C:\boutique_propre\produits_etat.csv"
 
-def charger_produits(forcer_import=False):
-    # Si le fichier d'état existe et qu'on ne force pas l'import, on le charge
-    if os.path.exists(LOCAL_STATE_FILE) and not forcer_import:
+def charger_produits():
+    if os.path.exists(LOCAL_STATE_FILE):
         produits = []
         with open(LOCAL_STATE_FILE, mode='r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
@@ -52,10 +51,8 @@ def charger_produits(forcer_import=False):
                 else:
                     row['galerie'] = [img.strip() for img in galerie_raw.split(',') if img.strip()]
                 produits.append(row)
-        if produits:
-            return produits
+        return produits
 
-    # Sinon, on scanne le dossier d'import CSV AliExpress
     produits_importes = []
     dossier_csv = r"C:\csv.aliexpress"
     if not os.path.exists(dossier_csv):
@@ -70,6 +67,7 @@ def charger_produits(forcer_import=False):
     for fichier in os.listdir(dossier_csv):
         if fichier.endswith(".csv"):
             chemin_complet = os.path.join(dossier_csv, fichier)
+            print(f"Lecture du fichier CSV: {chemin_complet}")
             try:
                 with open(chemin_complet, mode='r', encoding='utf-8-sig') as f:
                     lecteur = csv.DictReader(f)
@@ -90,12 +88,8 @@ def charger_produits(forcer_import=False):
                         c += 1
             except Exception as e:
                 print(f"Erreur lecture {fichier}: {e}")
-                
-    if produits_importes:
-        sauvegarder_produits(produits_importes)
-        return produits_importes
-    
-    return []
+    sauvegarder_produits(produits_importes)
+    return produits_importes
 
 def sauvegarder_produits(produits):
     os.makedirs(os.path.dirname(LOCAL_STATE_FILE), exist_ok=True)
@@ -493,14 +487,18 @@ def admin_logout():
 @app.route('/admin/import_csv', methods=['POST'])
 def admin_import_csv():
     if not session.get('admin_logged'): return redirect(url_for('admin_login'))
+    print("DEBUG: Requête d'import CSV reçue")
     fichier = request.files.get('fichier_csv')
     if fichier and fichier.filename.endswith('.csv'):
         os.makedirs(r"C:\csv.aliexpress", exist_ok=True)
         chemin = os.path.join(r"C:\csv.aliexpress", fichier.filename)
         fichier.save(chemin)
+        print(f"DEBUG: Fichier sauvegardé vers {chemin}")
         global PRODUITS
-        # On force le rechargement complet depuis le dossier d'import
-        PRODUITS = charger_produits(forcer_import=True)
+        PRODUITS = charger_produits()
+        print(f"DEBUG: Produits rechargés, total: {len(PRODUITS)}")
+    else:
+        print("DEBUG: Aucun fichier CSV valide trouvé dans la requête")
     return redirect(url_for('admin'))
 
 @app.route('/admin/update_cat/<int:p_id>', methods=['POST'])
