@@ -9,7 +9,7 @@ import ast
 app = Flask(__name__)
 app.secret_key = 'cle_secrete_boutique_v8'
 
-# Identifiants PayPal NVP Live officiels
+# Identifiants PayPal NVP Live officiels stricts
 PAYPAL_API_USER = "alvadojuan834_api1.gmail.com".strip()
 PAYPAL_API_PWD = "6VUUOI36XVVXLICO".strip()
 PAYPAL_API_SIGNATURE = "AaRSU2y8OAIEIxg92K4Zpd.Ucl0BAZSsK.CC9mosIjzFIvsppRWx-4Y".strip()
@@ -527,8 +527,7 @@ def process_order():
     host = request.headers.get('X-Forwarded-Host', request.host)
     base_url = f"https://{host}/"
 
-    # Option alternative d'encodage NVP ou basculement automatique sur un flux de jeton sécurisé direct si la signature pose problème
-    # On transmet la signature avec un nettoyage complet des retours chariot
+    # Requête NVP corrigée avec l'encodage officiel PayPal Live (Version 124.0)
     nvp_data = {
         "USER": PAYPAL_API_USER,
         "PWD": PAYPAL_API_PWD,
@@ -559,51 +558,71 @@ def process_order():
                 }
                 return redirect(f"https://www.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token={token}")
             else:
-                # Si l'API NVP directe bloque encore sur l'authentification de signature, on bascule proprement sur l'URL de paiement direct Live sécurisée sans perdre le panier ni le design
-                error_msg = parsed.get('L_LONGMESSAGE0', ['Erreur inconnue'])[0]
+                error_msg = parsed.get('L_LONGMESSAGE0', ['Erreur inconnue de l\'API PayPal'])[0]
+                error_code = parsed.get('L_ERRORCODE0', [''])[0]
                 return f"""
                 <div style="font-family:sans-serif; text-align:center; padding:50px; background:#f3f4f6; height:100vh;">
-                    <div style="background:white; max-width:550px; margin:0 auto; padding:30px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
-                        <h2 style="color:#e11d48; margin-bottom:15px;">⚠️ Activation API Live requise</h2>
+                    <div style="background:white; max-width:600px; margin:0 auto; padding:30px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
+                        <h2 style="color:#e11d48; margin-bottom:15px;">⚠️ Erreur PayPal ({error_code})</h2>
                         <p style="color:#4b5563; font-size:14px; line-height:1.6; margin-bottom:20px;">
-                            PayPal bloque l'appel direct NVP automatisé (Erreur 10002 : Signature non valide pour ce compte). 
-                            Pour encaisser l'argent directement sur ton compte sans passer par cette API bloquée, clique sur le bouton ci-dessous pour régler de manière 100% sécurisée :
+                            <strong>Message de PayPal :</strong> {error_msg}
                         </p>
-                        <form action="https://www.paypal.com/cgi-bin/webscr" method="POST">
-                            <input type="hidden" name="cmd" value="_xclick">
-                            <input type="hidden" name="business" value="{PAYPAL_API_USER}">
-                            <input type="hidden" name="item_name" value="Commande MonShop Direct">
-                            <input type="hidden" name="amount" value="{total:.2f}">
-                            <input type="hidden" name="currency_code" value="EUR">
-                            <input type="hidden" name="return" value="{base_url}paypal_success">
-                            <input type="hidden" name="cancel_url" value="{base_url}cart">
-                            <button type="submit" style="background:#0070ba; color:white; border:none; padding:14px 28px; border-radius:8px; font-weight:bold; font-size:16px; cursor:pointer; width:100%;">🅿️ Payer {total:.2f} € directement sur mon compte PayPal</button>
-                        </form>
-                        <br><a href="/cart" style="color:#64748b; font-weight:bold; text-decoration:none; font-size:13px;">⬅️ Retour au panier</a>
+                        <p style="color:#64748b; font-size:13px; margin-bottom:25px;">
+                            Vérifie que ton compte PayPal Live autorise bien les paiements par API externe sur ton tableau de bord marchand.
+                        </p>
+                        <a href="/cart" style="background:#6d28d9; color:white; padding:12px 24px; border-radius:6px; text-decoration:none; font-weight:bold;">⬅️ Retour au panier</a>
                     </div>
                 </div>
                 """
     except Exception as e:
-        return f"Exception NVP: {e}"
+        return f"Exception technique NVP: {e}"
 
 @app.route('/paypal_success')
 def paypal_success():
     token = request.args.get('token')
     payer_id = request.args.get('PayerID')
     
-    pending = session.get('pending_order', {"nom": "Client", "adresse": "", "tel": "", "total": "0.00"})
-    
-    commande = {
-        "nom": pending.get('nom', 'Client'),
-        "adresse": pending.get('adresse', ''),
-        "tel": pending.get('tel', ''),
-        "total": pending.get('total', '0.00'),
-        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    pending = session.get('pending_order')
+    if not token or not pending:
+        return redirect(url_for('home'))
+
+    nvp_data = {
+        "USER": PAYPAL_API_USER,
+        "PWD": PAYPAL_API_PWD,
+        "SIGNATURE": PAYPAL_API_SIGNATURE,
+        "VERSION": "124.0",
+        "METHOD": "DoExpressCheckoutPayment",
+        "TOKEN": token,
+        "PAYERID": payer_id,
+        "PAYMENTREQUEST_0_PAYMENTACTION": "Sale",
+        "PAYMENTREQUEST_0_AMT": pending['total'],
+        "PAYMENTREQUEST_0_CURRENCYCODE": "EUR"
     }
-    COMMANDES.append(commande)
-    session.pop('cart', None)
-    session.pop('pending_order', None)
-    return render_template_string(HTML_SUCCESS, commande=commande)
+
+    try:
+        encoded_data = urllib.parse.urlencode(nvp_data).encode('utf-8')
+        req = urllib.request.Request(PAYPAL_URL, data=encoded_data, headers={"Content-Type": "application/x-www-form-urlencoded"})
+        with urllib.request.urlopen(req) as response:
+            res_body = response.read().decode('utf-8')
+            parsed = urllib.parse.parse_qs(res_body)
+            
+            if parsed.get('ACK', [''])[0].upper() in ['SUCCESS', 'SUCCESSWITHWARNING']:
+                commande = {
+                    "nom": pending['nom'],
+                    "adresse": pending['adresse'],
+                    "tel": pending['tel'],
+                    "total": pending['total'],
+                    "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+                COMMANDES.append(commande)
+                session.pop('cart', None)
+                session.pop('pending_order', None)
+                return render_template_string(HTML_SUCCESS, commande=commande)
+            else:
+                error_msg = parsed.get('L_LONGMESSAGE0', ['Erreur de capture'])[0]
+                return f"<h3>Erreur de capture DoExpressCheckout :</h3><p>{error_msg}</p><br><a href='/cart'>Retour</a>"
+    except Exception as e:
+        return f"Exception DoExpressCheckout: {e}"
 
 @app.route('/admin')
 def admin():
