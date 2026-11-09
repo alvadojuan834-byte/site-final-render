@@ -9,13 +9,12 @@ import ast
 app = Flask(__name__)
 app.secret_key = 'cle_secrete_boutique_v8'
 
-# Identifiants PayPal NVP officiels (Live - Compte Officiel)
+# Identifiants PayPal NVP Live officiels
 PAYPAL_API_USER = "alvadojuan834_api1.gmail.com"
 PAYPAL_API_PWD = "6VUUOI36XVVXLICO"
 PAYPAL_API_SIGNATURE = "AaRSU2y8OAIEIxg92K4Zpd.Ucl0BAZSsK.CC9mosIjzFIvsppRWx-4Y"
 PAYPAL_URL = "https://api-3t.paypal.com/nvp"
 
-# Mot de passe secret en clair pour accéder à l'administration
 ADMIN_PASSWORD = "monpassadmin123"
 
 TRADUCTIONS = {
@@ -127,7 +126,6 @@ CSS_STYLED = """
     .search-form { display: flex; gap: 5px; flex-grow: 1; max-width: 350px; }
     .search-form input[type="text"] { width: 100%; padding: 8px 14px; border-radius: 6px; border: none; font-size: 14px; outline: none; }
     .search-form button { background: #ff9900; color: white; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-    .search-form button:hover { background: #e68a00; }
     .promo-banner { font-size: 15px; font-weight: 800; color: #ffffff; background: rgba(255, 255, 255, 0.1); padding: 6px 16px; border-radius: 30px; border: 1px solid rgba(255, 255, 255, 0.2); }
     .nav-actions { display: flex; align-items: center; gap: 15px; }
     .lang-select { background: #581c87; color: white; border: 1px solid #7c3aed; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; }
@@ -526,7 +524,6 @@ def process_order():
     tel = request.form.get('tel', '')
     adresse_complete = f"{adresse}, {cp} {ville}, {pays}"
 
-    # Correction critique : Forcer HTTPS pour le retour PayPal Live
     base_url = request.host_url.replace("http://", "https://")
 
     nvp_data = {
@@ -544,7 +541,7 @@ def process_order():
 
     try:
         encoded_data = urllib.parse.urlencode(nvp_data).encode('utf-8')
-        req = urllib.request.Request(PAYPAL_URL, data=encoded_data, method='POST')
+        req = urllib.request.Request(PAYPAL_URL, data=encoded_data, headers={"Content-Type": "application/x-www-form-urlencoded"})
         with urllib.request.urlopen(req) as response:
             res_body = response.read().decode('utf-8')
             parsed = urllib.parse.parse_qs(res_body)
@@ -557,12 +554,11 @@ def process_order():
                     "tel": tel,
                     "total": f"{total:.2f}"
                 }
-                redirect_url = f"https://www.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token={token}"
-                return redirect(redirect_url)
+                return redirect(f"https://www.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token={token}")
             else:
-                return f"Erreur PayPal NVP: {res_body}"
+                return f"<h3>Erreur NVP Live:</h3><pre>{res_body}</pre><br><a href='/cart'>Retour au panier</a>"
     except Exception as e:
-        return f"Exception PayPal: {e}"
+        return f"Exception NVP: {e}"
 
 @app.route('/paypal_success')
 def paypal_success():
@@ -588,7 +584,7 @@ def paypal_success():
 
     try:
         encoded_data = urllib.parse.urlencode(nvp_data).encode('utf-8')
-        req = urllib.request.Request(PAYPAL_URL, data=encoded_data, method='POST')
+        req = urllib.request.Request(PAYPAL_URL, data=encoded_data, headers={"Content-Type": "application/x-www-form-urlencoded"})
         with urllib.request.urlopen(req) as response:
             res_body = response.read().decode('utf-8')
             parsed = urllib.parse.parse_qs(res_body)
@@ -606,9 +602,9 @@ def paypal_success():
                 session.pop('pending_order', None)
                 return render_template_string(HTML_SUCCESS, commande=commande)
             else:
-                return f"Erreur de capture du paiement PayPal: {res_body}"
+                return f"<h3>Erreur DoExpressCheckout:</h3><pre>{res_body}</pre><br><a href='/cart'>Retour</a>"
     except Exception as e:
-        return f"Exception DoExpressCheckoutPayment: {e}"
+        return f"Exception DoExpressCheckout: {e}"
 
 @app.route('/admin')
 def admin():
