@@ -36,7 +36,7 @@ CATEGORIES = {
     "general": "✨ Tendances Générales"
 }
 
-LOCAL_STATE_FILE = r"C:\boutique_propre\produits_etat.csv"
+LOCAL_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "produits_etat.csv")
 
 def parser_dossier_csv():
     produits_importes = []
