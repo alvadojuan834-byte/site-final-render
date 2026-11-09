@@ -275,12 +275,11 @@ HTML_CART = """
 </html>
 """
 
-# HTML_CHECKOUT corrigé pour injecter proprement le client-id PayPal
-HTML_CHECKOUT = f"""
+HTML_CHECKOUT = """
 <!DOCTYPE html>
 <html lang="fr">
-<head><meta charset="UTF-8"><title>Validation Commande</title>{CSS_STYLED}
-<script src="https://www.paypal.com/sdk/js?client-id={PAYPAL_CLIENT_ID}&currency=EUR"></script>
+<head><meta charset="UTF-8"><title>Validation Commande</title>""" + CSS_STYLED + """
+<script src="https://www.paypal.com/sdk/js?client-id=BAAMpkqm_4fv14OBn_OdU48IV0WotsovJC6TnqVDGoqp6mGVOQoQR6oT1IE3pVv0lf1vSCxUz00r7qtBI&currency=EUR"></script>
 </head>
 <body>
     <div class="header">
@@ -323,17 +322,17 @@ HTML_CHECKOUT = f"""
         </div>
     </div>
     <script>
-        paypal.Buttons({{
-            createOrder: function(data, actions) {{
-                return fetch('/api/paypal/create_order', {{
+        paypal.Buttons({
+            createOrder: function(data, actions) {
+                return fetch('/api/paypal/create_order', {
                     method: 'POST',
-                    headers: {{ 'Content-Type': 'application/json' }}
-                }}).then(res => res.json()).then(order => {{
+                    headers: { 'Content-Type': 'application/json' }
+                }).then(res => res.json()).then(order => {
                     if(order.id) return order.id;
                     alert('Erreur création commande PayPal: ' + JSON.stringify(order));
-                }});
-            }},
-            onApprove: function(data, actions) {{
+                });
+            },
+            onApprove: function(data, actions) {
                 const nom = document.getElementById('nom').value;
                 const adresse = document.getElementById('adresse').value;
                 const cp = document.getElementById('cp').value;
@@ -341,29 +340,29 @@ HTML_CHECKOUT = f"""
                 const pays = document.getElementById('pays').value;
                 const tel = document.getElementById('tel').value;
 
-                if(!nom || !adresse || !cp || !ville || !pays || !tel) {{
+                if(!nom || !adresse || !cp || !ville || !pays || !tel) {
                     alert('Remplis tous les champs de livraison avant de payer !');
                     return;
-                }}
+                }
 
-                return fetch('/api/paypal/capture_order', {{
+                return fetch('/api/paypal/capture_order', {
                     method: 'POST',
-                    headers: {{ 'Content-Type': 'application/json' }},
-                    body: JSON.stringify({{
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
                         orderID: data.orderID,
                         nom: nom,
                         adresse: adresse + ', ' + cp + ' ' + ville + ', ' + pays,
                         tel: tel
-                    }})
-                }}).then(res => res.json()).then(details => {{
-                    if (details.success) {{
+                    })
+                }).then(res => res.json()).then(details => {
+                    if (details.success) {
                         window.location.href = "/success?nom=" + encodeURIComponent(nom);
-                    }} else {{
+                    } else {
                         alert('REFUS PAYPAL : ' + JSON.stringify(details.error));
-                    }}
-                }});
-            }}
-        }}).render('#paypal-button-container');
+                    }
+                });
+            }
+        }).render('#paypal-button-container');
     </script>
 </body>
 </html>
