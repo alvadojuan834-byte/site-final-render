@@ -9,7 +9,6 @@ import ast
 app = Flask(__name__)
 app.secret_key = 'cle_secrete_boutique_v8'
 
-# Identifiants PayPal NVP Live (nettoyés avec .strip() pour éviter tout espace invisible)
 PAYPAL_API_USER = "alvadojuan834_api1.gmail.com".strip()
 PAYPAL_API_PWD = "6VUUOI36XVVXLICO".strip()
 PAYPAL_API_SIGNATURE = "AaRSU2y8OAIEIxg92K4Zpd.Ucl0BAZSsK.CC9mosIjzFIvsppRWx-4Y".strip()
@@ -524,7 +523,9 @@ def process_order():
     tel = request.form.get('tel', '')
     adresse_complete = f"{adresse}, {cp} {ville}, {pays}"
 
-    base_url = request.host_url.replace("http://", "https://")
+    # Forçage HTTPS propre avec l'hôte Render exact pour éviter les rejets d'URL de retour
+    host = request.headers.get('X-Forwarded-Host', request.host)
+    base_url = f"https://{host}/"
 
     nvp_data = {
         "USER": PAYPAL_API_USER,
@@ -556,7 +557,7 @@ def process_order():
                 }
                 return redirect(f"https://www.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token={token}")
             else:
-                return f"<h3>Erreur NVP Live:</h3><pre>{res_body}</pre><br><a href='/cart'>Retour au panier</a>"
+                return f"<h3>Erreur SetExpressCheckout Live:</h3><pre>{res_body}</pre><br><a href='/cart'>Retour au panier</a>"
     except Exception as e:
         return f"Exception NVP: {e}"
 
@@ -602,7 +603,7 @@ def paypal_success():
                 session.pop('pending_order', None)
                 return render_template_string(HTML_SUCCESS, commande=commande)
             else:
-                return f"<h3>Erreur DoExpressCheckout:</h3><pre>{res_body}</pre><br><a href='/cart'>Retour</a>"
+                return f"<h3>Erreur DoExpressCheckout (Capture):</h3><pre>{res_body}</pre><br><a href='/cart'>Retour</a>"
     except Exception as e:
         return f"Exception DoExpressCheckout: {e}"
 
