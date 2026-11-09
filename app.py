@@ -9,11 +9,13 @@ import ast
 app = Flask(__name__)
 app.secret_key = 'cle_secrete_boutique_v8'
 
+# Identifiants PayPal NVP officiels (Live - Compte Officiel)
 PAYPAL_API_USER = "alvadojuan834_api1.gmail.com"
 PAYPAL_API_PWD = "6VUUOI36XVVXLICO"
 PAYPAL_API_SIGNATURE = "AaRSU2y8OAIEIxg92K4Zpd.Ucl0BAZSsK.CC9mosIjzFIvsppRWx-4Y"
 PAYPAL_URL = "https://api-3t.paypal.com/nvp"
 
+# Mot de passe secret en clair pour accéder à l'administration
 ADMIN_PASSWORD = "monpassadmin123"
 
 TRADUCTIONS = {
@@ -125,6 +127,7 @@ CSS_STYLED = """
     .search-form { display: flex; gap: 5px; flex-grow: 1; max-width: 350px; }
     .search-form input[type="text"] { width: 100%; padding: 8px 14px; border-radius: 6px; border: none; font-size: 14px; outline: none; }
     .search-form button { background: #ff9900; color: white; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+    .search-form button:hover { background: #e68a00; }
     .promo-banner { font-size: 15px; font-weight: 800; color: #ffffff; background: rgba(255, 255, 255, 0.1); padding: 6px 16px; border-radius: 30px; border: 1px solid rgba(255, 255, 255, 0.2); }
     .nav-actions { display: flex; align-items: center; gap: 15px; }
     .lang-select { background: #581c87; color: white; border: 1px solid #7c3aed; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; }
@@ -350,7 +353,7 @@ HTML_SUCCESS = """
         <div style="background:white; border-radius: 12px; padding: 40px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
             <div style="font-size: 50px; margin-bottom: 15px;">🎉</div>
             <h2 style="color: #16a34a; font-size: 26px; margin-bottom: 10px;">Paiement PayPal validé avec succès !</h2>
-            <p style="color: #64748b; margin-bottom: 30px;">Merci <strong>{{ commande.nom }}</strong>. Votre transaction PayPal a bien été confirmée.</p>
+            <p style="color: #64748b; margin-bottom: 30px;">Merci <strong>{{ commande.nom }}</strong>. Votre transaction PayPal a bien été confirmée et encaissée.</p>
             <a href="/" class="btn-buy" style="display:inline-block; width:auto; padding: 12px 30px;">Retourner à la boutique</a>
         </div>
     </div>
@@ -523,6 +526,9 @@ def process_order():
     tel = request.form.get('tel', '')
     adresse_complete = f"{adresse}, {cp} {ville}, {pays}"
 
+    # Correction critique : Forcer HTTPS pour le retour PayPal Live
+    base_url = request.host_url.replace("http://", "https://")
+
     nvp_data = {
         "USER": PAYPAL_API_USER,
         "PWD": PAYPAL_API_PWD,
@@ -532,8 +538,8 @@ def process_order():
         "PAYMENTREQUEST_0_PAYMENTACTION": "Sale",
         "PAYMENTREQUEST_0_AMT": f"{total:.2f}",
         "PAYMENTREQUEST_0_CURRENCYCODE": "EUR",
-        "RETURNURL": request.host_url + "paypal_success",
-        "CANCELURL": request.host_url + "cart"
+        "RETURNURL": base_url + "paypal_success",
+        "CANCELURL": base_url + "cart"
     }
 
     try:
