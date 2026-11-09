@@ -9,13 +9,14 @@ import ast
 app = Flask(__name__)
 app.secret_key = 'cle_secrete_boutique_v8'
 
-# Identifiants PayPal NVP officiels (Strictement préservés et intacts)
+# ==========================================
+# IDENTIFIANTS PAYPAL NVP OFFICIELS & TUNNEL
+# ==========================================
 PAYPAL_API_USER = "alvadojuan834_api1.gmail.com"
 PAYPAL_API_PWD = "6VUUOI36XVVXLICO"
 PAYPAL_API_SIGNATURE = "AaRSU2y8OAIEIxg92K4Zpd.Ucl0BAZSsK.CC9mosIjzFIvsppRWx-4Y"
 PAYPAL_URL = "https://api-3t.sandbox.paypal.com/nvp"
 
-# Mot de passe secret en clair pour accéder à l'administration
 ADMIN_PASSWORD = "monpassadmin123"
 
 TRADUCTIONS = {
@@ -88,7 +89,6 @@ def parser_dossier_csv():
     return produits_importes
 
 def charger_produits():
-    # Balayage complet et automatique de TOUS les fichiers CSV pour dépasser les 268 articles
     produits_importes = parser_dossier_csv()
     if not produits_importes and os.path.exists(LOCAL_STATE_FILE):
         produits = []
@@ -552,4 +552,101 @@ def process_order():
     items = session.get('cart', [])
     if not items:
         return redirect(url_for('home'))
+    
     total = sum(float(item['prix']) for item in items if item['prix'].replace('.','',1).isdigit())
+    nom = request.form.get('nom', 'Client')
+    adresse = request.form.get('adresse', '')
+    cp = request.form.get('cp', '')
+    ville = request.form.get('ville', '')
+    pays = request.form.get('pays', 'FR')
+    
+    # Appel API PayPal NVP (SetExpressCheckout)
+    nvp_data = {
+        'USER': PAYPAL_API_USER,
+        'PWD': PAYPAL_API_PWD,
+        'SIGNATURE': PAYPAL_API_SIGNATURE,
+        'METHOD': 'SetExpressCheckout',
+        'VERSION': '124.0',
+        'PAYMENTREQUEST_0_AMT': f"{total:.2f}",
+        'PAYMENTREQUEST_0_CURRENCYCODE': 'EUR',
+        'PAYMENTREQUEST_0_PAYMENTACTION': 'Sale',
+        'RETURNURL': request.host_url + 'paypal_success',
+        'CANCELURL': request.host_url + 'cart'
+    }
+    
+    encoded_data = urllib.parse.urlencode(nvp_data).encode('utf-8')
+    req = urllib.request.Request(PAYPAL_URL, data=encoded_data, method='POST')
+    
+    try:
+        with urllib.request.urlopen(req) as response:
+            res_body = response.read().decode('utf-8')
+            response_params = urllib.parse.parse_qs(res_body)
+            
+            if response_params.get('ACK', [''])[0].upper() in ['SUCCESS', 'SUCCESSWITHWARNING']:
+                token = response_params.get('TOKEN', [''])[0]
+                session['pending_order'] = {'nom': nom, 'total': total}
+                return redirect(f"https://www.sandbox.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token={token}")
+            else:
+                return f"Erreur PayPal NVP: {res_body}", 400
+    except Exception as e:
+        return f"Erreur de communication PayPal: {e}", 500
+
+@app.route('/paypal_success')
+def paypal_success():
+    commande = session.pop('pending_order', {'nom': 'Client', 'total': 0})
+    session.pop('cart', None)
+    return render_template_string(HTML_SUCCESS, commande=commande)
+
+@app.route('/admin/login', methods=['POST'])
+def admin_login():
+    pwd = request.form.get('password', '')
+    if pwd == ADMIN_PASSWORD:
+        session['is_admin'] = True
+        return redirect(url_for('admin_panel'))
+    return render_template_string(HTML_LOGIN, erreur="Mot de passe incorrect")
+
+@app.route('/admin')
+def admin_panel():
+    if not session.get('is_admin'):
+        return render_template_string(HTML_LOGIN)
+    return render_template_string(HTML_ADMIN, produits=PRODUITS, categories=CATEGORIES)
+
+@app.route('/admin/logout')
+def admin_logout():
+    session.pop('is_admin', None)
+    return redirect(url_for('home'))
+
+@app.route('/admin/delete/<int:p_id>')
+def admin_delete(p_id):
+    if not session.get('is_admin'): return redirect(url_for('admin_login'))
+    global PRODUITS
+    PRODUITS = [p for p in PRODUITS if p['id'] != p_id]
+    sauvegarder_produits(PRODUITS)
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/update_cat/<int:p_id>', methods=['POST'])
+def admin_update_cat(p_id):
+    if not session.get('is_admin'): return redirect(url_for('admin_login'))
+    nouvelle_cat = request.form.get('nouvelle_cat', 'general')
+    global PRODUITS
+    for p in PRODUITS:
+        if p['id'] == p_id:
+            p['categorie'] = nouvelle_cat
+    sauvegarder_produits(PRODUITS)
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/import_csv', methods=['POST'])
+def admin_import_csv():
+    if not session.get('is_admin'): return redirect(url_for('admin_login'))
+    fichier = request.files.get('fichier_csv')
+    if fichier:
+        dossier_csv = r"C:\csv.aliexpress"
+        os.makedirs(dossier_csv, exist_ok=True)
+        chemin = os.path.join(dossier_csv, fichier.filename)
+        fichier.save(chemin)
+        global PRODUITS
+        PRODUITS = charger_produits()
+    return redirect(url_for('admin_panel'))
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
