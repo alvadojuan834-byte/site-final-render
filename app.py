@@ -2,10 +2,12 @@
 from datetime import datetime
 import os
 import csv
+import urllib.parse
+import urllib.request
 import ast
 
 app = Flask(__name__)
-app.secret_key = 'cle_secrete_boutique_v9'
+app.secret_key = 'cle_secrete_boutique_v8'
 
 PAYPAL_API_USER = "alvadojuan834_api1.gmail.com"
 PAYPAL_API_PWD = "6VUUOI36XVVXLICO"
@@ -137,7 +139,6 @@ CSS_STYLED = """
     .card-price { font-size: 18px; font-weight: 900; color: #2563eb; margin-bottom: 12px; }
     .btn-buy { background: #6d28d9; color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; text-decoration: none; text-align: center; display: block; width: 100%; }
     .btn-paypal { background: #0070ba; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; text-decoration: none; text-align: center; display: block; width: 100%; }
-    .btn-card { background: #0284c7; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; text-decoration: none; text-align: center; display: block; width: 100%; margin-top: 10px; }
 </style>
 """
 
@@ -169,7 +170,7 @@ HTML_INDEX = """
         </div>
     </div>
     <div class="top-trust-bar">
-        <div class="trust-item"><span>🔒</span> Paiement 100% sécurisé (CB & PayPal)</div>
+        <div class="trust-item"><span>🔒</span> Paiement 100% sécurisé</div>
         <div class="trust-item"><span>📦</span> Suivi des colis en temps réel</div>
         <div class="trust-item"><span>⚡</span> Expédition rapide garantie</div>
     </div>
@@ -275,13 +276,12 @@ HTML_CHECKOUT = """
 <body>
     <div class="header">
         <a href="/" class="brand-logo">🛍️ MonShop Direct</a>
-        <div class="promo-banner">🔥 Paiement Sécurisé (PayPal & Carte Bancaire)</div>
+        <div class="promo-banner">🔥 Paiement Sécurisé</div>
         <a href="/cart" style="color:white; text-decoration:none; font-weight:bold;">⬅️ Panier</a>
     </div>
     <div class="container" style="max-width: 650px;">
         <div style="background:white; border-radius: 12px; padding: 30px;">
-            <h2 style="color: #2e1065; margin-bottom: 20px;">💳 Choisissez votre mode de paiement</h2>
-            
+            <h2 style="color: #2e1065; margin-bottom: 10px;">💳 Paiement Sécurisé via PayPal</h2>
             <form action="/process_order" method="POST">
                 <div style="margin-bottom: 15px;"><label style="display:block; font-weight:bold; margin-bottom:5px;">Nom et Prénom</label><input type="text" name="nom" required style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;"></div>
                 <div style="margin-bottom: 15px;"><label style="display:block; font-weight:bold; margin-bottom:5px;">Adresse postale</label><input type="text" name="adresse" required style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;"></div>
@@ -291,22 +291,7 @@ HTML_CHECKOUT = """
                 </div>
                 <div style="margin-bottom: 15px;"><label style="display:block; font-weight:bold; margin-bottom:5px;">Pays</label><input type="text" name="pays" required style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;"></div>
                 <div style="margin-bottom: 25px;"><label style="display:block; font-weight:bold; margin-bottom:5px;">Téléphone</label><input type="tel" name="tel" required style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;"></div>
-                
-                <input type="hidden" name="methode" value="paypal">
-                <button type="submit" class="btn-paypal" formaction="/process_order?pay=paypal">🅿️ Payer via PayPal (Compte ou Carte)</button>
-            </form>
-
-            <hr style="margin: 25px 0; border: none; border-top: 1px solid #e2e8f0;">
-
-            <!-- Formulaire direct Carte Bancaire -->
-            <form action="/process_order?pay=card" method="POST">
-                <h3 style="color: #1e293b; font-size: 16px; margin-bottom: 15px;">💳 Paiement direct par Carte Bancaire (Visa / Mastercard)</h3>
-                <div style="margin-bottom: 15px;"><label style="display:block; font-weight:bold; margin-bottom:5px;">Numéro de carte</label><input type="text" name="cc_num" placeholder="4970 0000 0000 0000" maxlength="19" required style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;"></div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px;">
-                    <div><label style="display:block; font-weight:bold; margin-bottom:5px;">Expiration (MM/AA)</label><input type="text" name="cc_exp" placeholder="MM/AA" maxlength="5" required style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;"></div>
-                    <div><label style="display:block; font-weight:bold; margin-bottom:5px;">CVV / Cryptogramme</label><input type="password" name="cc_cvv" placeholder="123" maxlength="4" required style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;"></div>
-                </div>
-                <button type="submit" class="btn-card">🔒 Payer par Carte Bancaire Directe</button>
+                <button type="submit" class="btn-paypal">🅿️ Payer avec PayPal</button>
             </form>
         </div>
     </div>
@@ -323,8 +308,7 @@ HTML_SUCCESS = """
     <div class="container" style="max-width: 750px;">
         <div style="background:white; border-radius: 12px; padding: 40px; text-align: center;">
             <div style="font-size: 50px; margin-bottom: 15px;">🎉</div>
-            <h2 style="color: #16a34a; font-size: 26px; margin-bottom: 10px;">Commande validée avec succès !</h2>
-            <p style="color: #475569; margin-bottom: 25px;">Mode de paiement utilisé : <b>{{ mode }}</b></p>
+            <h2 style="color: #16a34a; font-size: 26px; margin-bottom: 10px;">Paiement PayPal validé avec succès !</h2>
             <a href="/" class="btn-buy" style="display:inline-block; width:auto; padding: 12px 30px;">Retourner à la boutique</a>
         </div>
     </div>
@@ -475,19 +459,15 @@ def process_order():
     items = session.get('cart', [])
     if not items: return redirect(url_for('home'))
     total = sum(float(item['prix']) for item in items if item['prix'].replace('.','',1).isdigit())
-    
-    mode_paiement = request.args.get('pay', 'paypal')
-    libelle_mode = "Carte Bancaire Directe (Visa/Mastercard)" if mode_paiement == 'card' else "PayPal"
-
     commande = {
         "nom": request.form.get('nom'), "adresse": request.form.get('adresse'),
         "cp": request.form.get('cp'), "ville": request.form.get('ville'),
         "pays": request.form.get('pays'), "tel": request.form.get('tel'),
-        "total": total, "items": items, "mode": libelle_mode
+        "total": total, "items": items
     }
     COMMANDES.append(commande)
     session.pop('cart', None)
-    return render_template_string(HTML_SUCCESS, commande=commande, mode=libelle_mode)
+    return render_template_string(HTML_SUCCESS, commande=commande)
 
 @app.route('/admin')
 def admin():
