@@ -1,10 +1,11 @@
-﻿from flask import Flask, render_template_string, request, redirect, url_for, session
+﻿from flask import Flask, render_template_string, request, redirect, url_for, session, jsonify
 from datetime import datetime
 import os
 import csv
 import urllib.parse
 import urllib.request
 import ast
+import requests
 
 app = Flask(__name__)
 app.secret_key = 'cle_secrete_boutique_v8'
@@ -308,7 +309,9 @@ HTML_CART = """
 HTML_CHECKOUT = """
 <!DOCTYPE html>
 <html lang="fr">
-<head><meta charset="UTF-8"><title>Validation Commande</title>""" + CSS_STYLED + """</head>
+<head><meta charset="UTF-8"><title>Validation Commande</title>""" + CSS_STYLED + """
+<script src="https://www.paypal.com/sdk/js?client-id=""" + PAYPAL_CLIENT_ID + """&currency=EUR"></script>
+</head>
 <body>
     <div class="header">
         <a href="/" class="brand-logo">🛍️ MonShop Direct</a>
@@ -319,40 +322,81 @@ HTML_CHECKOUT = """
     <div class="container" style="max-width: 650px;">
         <div style="background:white; border-radius: 12px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
             <h2 style="color: #2e1065; margin-bottom: 10px;">💳 Paiement Sécurisé via PayPal</h2>
-            <p style="color: #64748b; font-size: 14px; margin-bottom: 25px;">Remplissez vos coordonnées de livraison, puis validez pour régler via PayPal Live.</p>
+            <p style="color: #64748b; font-size: 14px; margin-bottom: 25px;">Remplissez vos coordonnées, puis procédez au paiement réel.</p>
             
-            <form action="/process_order" method="POST">
+            <form id="orderForm" style="margin-bottom: 25px;">
                 <div style="margin-bottom: 15px;">
                     <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Nom et Prénom</label>
-                    <input type="text" name="nom" required placeholder="Jean Dupont" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
+                    <input type="text" id="nom" required placeholder="Jean Dupont" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
                 </div>
                 <div style="margin-bottom: 15px;">
                     <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Adresse postale (Rue et numéro)</label>
-                    <input type="text" name="adresse" required placeholder="123 Rue de la République" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
+                    <input type="text" id="adresse" required placeholder="123 Rue de la République" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                     <div>
                         <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Code Postal</label>
-                        <input type="text" name="cp" required placeholder="75001" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
+                        <input type="text" id="cp" required placeholder="75001" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
                     </div>
                     <div>
                         <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Ville</label>
-                        <input type="text" name="ville" required placeholder="Paris" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
+                        <input type="text" id="ville" required placeholder="Paris" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
                     </div>
                 </div>
                 <div style="margin-bottom: 15px;">
                     <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Pays</label>
-                    <input type="text" name="pays" required placeholder="France / Belgique" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
+                    <input type="text" id="pays" required placeholder="France / Belgique" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
                 </div>
-                <div style="margin-bottom: 25px;">
-                    <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Téléphone (pour le suivi transporteur)</label>
-                    <input type="tel" name="tel" required placeholder="0612345678" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
+                <div style="margin-bottom: 15px;">
+                    <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Téléphone</label>
+                    <input type="tel" id="tel" required placeholder="0612345678" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
                 </div>
-                
-                <button type="submit" class="btn-paypal">🅿️ Payer avec PayPal</button>
             </form>
+
+            <div id="paypal-button-container"></div>
         </div>
     </div>
+
+    <script>
+        paypal.Buttons({
+            createOrder: function(data, actions) {
+                return fetch('/api/paypal/create_order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                }).then(res => res.json()).then(order => order.id);
+            },
+            onApprove: function(data, actions) {
+                const nom = document.getElementById('nom').value;
+                const adresse = document.getElementById('adresse').value;
+                const cp = document.getElementById('cp').value;
+                const ville = document.getElementById('ville').value;
+                const pays = document.getElementById('pays').value;
+                const tel = document.getElementById('tel').value;
+
+                if(!nom || !adresse || !cp || !ville || !pays || !tel) {
+                    alert('Veuillez remplir tous les champs de livraison avant de payer.');
+                    return;
+                }
+
+                return fetch('/api/paypal/capture_order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        orderID: data.orderID,
+                        nom: nom,
+                        adresse: adresse + ', ' + cp + ' ' + ville + ', ' + pays,
+                        tel: tel
+                    })
+                }).then(res => res.json()).then(details => {
+                    if (details.success) {
+                        window.location.href = "/success?nom=" + encodeURIComponent(nom);
+                    } else {
+                        alert('Erreur lors de la capture PayPal: ' + JSON.stringify(details.error));
+                    }
+                });
+            }
+        }).render('#paypal-button-container');
+    </script>
 </body>
 </html>
 """
@@ -370,7 +414,7 @@ HTML_SUCCESS = """
         <div style="background:white; border-radius: 12px; padding: 40px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
             <div style="font-size: 50px; margin-bottom: 15px;">🎉</div>
             <h2 style="color: #16a34a; font-size: 26px; margin-bottom: 10px;">Paiement PayPal validé avec succès !</h2>
-            <p style="color: #64748b; margin-bottom: 30px;">Merci <strong>{{ commande.nom }}</strong>. Votre transaction PayPal a bien été confirmée.</p>
+            <p style="color: #64748b; margin-bottom: 30px;">Merci <strong>{{ nom }}</strong>. Votre transaction PayPal a bien été confirmée et encaissée.</p>
             <a href="/" class="btn-buy" style="display:inline-block; width:auto; padding: 12px 30px;">Retourner à la boutique</a>
         </div>
     </div>
@@ -460,6 +504,88 @@ HTML_ADMIN = """
 </html>
 """
 
+def get_paypal_access_token():
+    auth_url = f"{PAYPAL_URL}/v1/oauth2/token"
+    res = requests.post(
+        auth_url,
+        auth=(PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET),
+        data={"grant_type": "client_credentials"}
+    )
+    if res.status_code == 200:
+        return res.json().get("access_token")
+    return None
+
+@app.route('/api/paypal/create_order', methods=['POST'])
+def api_paypal_create_order():
+    items = session.get('cart', [])
+    total = sum(float(item['prix']) for item in items if item['prix'].replace('.','',1).isdigit())
+    if total <= 0:
+        total = 2.70
+
+    token = get_paypal_access_token()
+    if not token:
+        return jsonify({"error": "Erreur d'authentification PayPal"}), 500
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {token}"
+    }
+    payload = {
+        "intent": "CAPTURE",
+        "purchase_units": [{
+            "amount": {
+                "currency_code": "EUR",
+                "value": f"{total:.2f}"
+            }
+        }]
+    }
+
+    res = requests.post(f"{PAYPAL_URL}/v2/checkout/orders", headers=headers, json=payload)
+    if res.status_code in [200, 201]:
+        return jsonify(res.json())
+    return jsonify({"error": res.text}), 500
+
+@app.route('/api/paypal/capture_order', methods=['POST'])
+def api_paypal_capture_order():
+    data = request.get_json()
+    order_id = data.get('orderID')
+    nom = data.get('nom', 'Client')
+    adresse = data.get('adresse', '')
+    tel = data.get('tel', '')
+
+    if not order_id:
+        return jsonify({"success": False, "error": "Order ID manquant"}), 400
+
+    token = get_paypal_access_token()
+    if not token:
+        return jsonify({"success": False, "error": "Token PayPal invalide"}), 500
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {token}"
+    }
+
+    res = requests.post(f"{PAYPAL_URL}/v2/checkout/orders/{order_id}/capture", headers=headers)
+    res_data = res.json()
+
+    if res.status_code in [200, 201] and res_data.get("status") == "COMPLETED":
+        items = session.get('cart', [])
+        total = sum(float(item['prix']) for item in items if item['prix'].replace('.','',1).isdigit())
+        
+        commande = {
+            "nom": nom,
+            "adresse": adresse,
+            "tel": tel,
+            "total": f"{total:.2f}",
+            "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "paypal_order_id": order_id
+        }
+        COMMANDES.append(commande)
+        session.pop('cart', None)
+        return jsonify({"success": True, "details": res_data})
+    
+    return jsonify({"success": False, "error": res_data}), 400
+
 @app.route('/')
 def home():
     lang = session.get('lang', 'fr')
@@ -529,22 +655,10 @@ def checkout():
     total = sum(float(item['prix']) for item in items if item['prix'].replace('.','',1).isdigit())
     return render_template_string(HTML_CHECKOUT, total=total)
 
-@app.route('/process_order', methods=['POST'])
-def process_order():
-    items = session.get('cart', [])
-    if not items:
-        return redirect(url_for('home'))
-    total = sum(float(item['prix']) for item in items if item['prix'].replace('.','',1).isdigit())
-    
-    global DERNIERE_COMMANDE
-    DERNIERE_COMMANDE = {
-        "nom": request.form.get('nom'),
-        "adresse": request.form.get('adresse'),
-        "ville": request.form.get('ville'),
-        "total": total
-    }
-    session.pop('cart', None)
-    return render_template_string(HTML_SUCCESS, commande=DERNIERE_COMMANDE)
+@app.route('/success')
+def success():
+    nom = request.args.get('nom', 'Client')
+    return render_template_string(HTML_SUCCESS, nom=nom)
 
 @app.route('/admin')
 def admin():
@@ -558,18 +672,60 @@ def admin_login():
         if request.form.get('password') == ADMIN_PASSWORD:
             session['admin_logged'] = True
             return redirect(url_for('admin'))
-        else:
-            return render_template_string(HTML_LOGIN, erreur="Mot de passe incorrect.")
+        return render_template_string(HTML_LOGIN, erreur="Mot de passe incorrect")
     return render_template_string(HTML_LOGIN)
 
 @app.route('/admin/logout')
 def admin_logout():
     session.pop('admin_logged', None)
-    return redirect(url_for('admin_login'))
+    return redirect(url_for('home'))
+
+@app.route('/admin/import_csv', methods=['POST'])
+def admin_import_csv():
+    if not session.get('admin_logged'):
+        return redirect(url_for('admin_login'))
+    
+    file = request.files.get('fichier_csv')
+    if file and file.filename.endswith('.csv'):
+        try:
+            content = file.read().decode('utf-8-sig', errors='ignore')
+            lines = content.splitlines()
+            lecteur = csv.DictReader(lines)
+            
+            global PRODUITS
+            max_id = max([p['id'] for p in PRODUITS]) if PRODUITS else -1
+            c = max_id + 1
+            
+            nouveaux = []
+            for ligne in lecteur:
+                nom = ligne.get('Title') or ligne.get('nom') or 'Produit Importé'
+                prix = ligne.get('Sale price') or ligne.get('prix') or '19.99'
+                if not prix: prix = '19.99'
+                image = ligne.get('Product Image Url') or ligne.get('image') or 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500'
+                if ',' in image: image = image.split(',')[0].strip()
+                galerie_raw = ligne.get('Main images url') or ligne.get('galerie') or ''
+                galerie = [img.strip() for img in galerie_raw.split(',') if img.strip()]
+                if not galerie: galerie = [image]
+                desc = ligne.get('Product description html') or ligne.get('description') or 'Aucune description disponible.'
+                
+                nouveaux.append({
+                    "id": c, "nom": nom, "prix": str(prix), "image": image,
+                    "galerie": galerie[:5], "categorie": "general", "description": str(desc)[:300] + "..."
+                })
+                c += 1
+            
+            if nouveaux:
+                PRODUITS.extend(nouveaux)
+                sauvegarder_produits(PRODUITS)
+        except Exception as e:
+            print(f"Erreur import admin: {e}")
+            
+    return redirect(url_for('admin'))
 
 @app.route('/admin/delete/<int:p_id>')
 def admin_delete(p_id):
-    if not session.get('admin_logged'): return redirect(url_for('admin_login'))
+    if not session.get('admin_logged'):
+        return redirect(url_for('admin_login'))
     global PRODUITS
     PRODUITS = [p for p in PRODUITS if p['id'] != p_id]
     sauvegarder_produits(PRODUITS)
@@ -577,8 +733,9 @@ def admin_delete(p_id):
 
 @app.route('/admin/update_cat/<int:p_id>', methods=['POST'])
 def admin_update_cat(p_id):
-    if not session.get('admin_logged'): return redirect(url_for('admin_login'))
-    nouvelle_cat = request.form.get('nouvelle_cat')
+    if not session.get('admin_logged'):
+        return redirect(url_for('admin_login'))
+    nouvelle_cat = request.form.get('nouvelle_cat', 'general')
     global PRODUITS
     for p in PRODUITS:
         if p['id'] == p_id:
