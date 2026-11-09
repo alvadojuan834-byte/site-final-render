@@ -56,18 +56,12 @@ def charger_produits():
     produits_importes = []
     dossier_csv = r"C:\csv.aliexpress"
     if not os.path.exists(dossier_csv):
-        return [{
-            "id": 0, "nom": "Manette Gaming Sans Fil Pro RGB", "prix": "29.99",
-            "image": "https://images.unsplash.com/photo-1600861194942-f883de0ac966?w=500",
-            "galerie": ["https://images.unsplash.com/photo-1600861194942-f883de0ac966?w=500"],
-            "categorie": "gaming", "description": "Matériel gaming haute performance."
-        }]
+        return []
 
     c = 0
     for fichier in os.listdir(dossier_csv):
         if fichier.endswith(".csv"):
             chemin_complet = os.path.join(dossier_csv, fichier)
-            print(f"Lecture du fichier CSV: {chemin_complet}")
             try:
                 with open(chemin_complet, mode='r', encoding='utf-8-sig') as f:
                     lecteur = csv.DictReader(f)
@@ -487,18 +481,13 @@ def admin_logout():
 @app.route('/admin/import_csv', methods=['POST'])
 def admin_import_csv():
     if not session.get('admin_logged'): return redirect(url_for('admin_login'))
-    print("DEBUG: Requête d'import CSV reçue")
     fichier = request.files.get('fichier_csv')
     if fichier and fichier.filename.endswith('.csv'):
         os.makedirs(r"C:\csv.aliexpress", exist_ok=True)
         chemin = os.path.join(r"C:\csv.aliexpress", fichier.filename)
         fichier.save(chemin)
-        print(f"DEBUG: Fichier sauvegardé vers {chemin}")
         global PRODUITS
         PRODUITS = charger_produits()
-        print(f"DEBUG: Produits rechargés, total: {len(PRODUITS)}")
-    else:
-        print("DEBUG: Aucun fichier CSV valide trouvé dans la requête")
     return redirect(url_for('admin'))
 
 @app.route('/admin/update_cat/<int:p_id>', methods=['POST'])
