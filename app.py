@@ -35,8 +35,9 @@ CATEGORIES = {
 
 LOCAL_STATE_FILE = r"C:\boutique_propre\produits_etat.csv"
 
-def charger_produits():
-    if os.path.exists(LOCAL_STATE_FILE):
+def charger_produits(forcer_import=False):
+    # Si le fichier d'état existe et qu'on ne force pas l'import, on le charge
+    if os.path.exists(LOCAL_STATE_FILE) and not forcer_import:
         produits = []
         with open(LOCAL_STATE_FILE, mode='r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
@@ -51,8 +52,10 @@ def charger_produits():
                 else:
                     row['galerie'] = [img.strip() for img in galerie_raw.split(',') if img.strip()]
                 produits.append(row)
-        return produits
+        if produits:
+            return produits
 
+    # Sinon, on scanne le dossier d'import CSV AliExpress
     produits_importes = []
     dossier_csv = r"C:\csv.aliexpress"
     if not os.path.exists(dossier_csv):
@@ -87,8 +90,12 @@ def charger_produits():
                         c += 1
             except Exception as e:
                 print(f"Erreur lecture {fichier}: {e}")
-    sauvegarder_produits(produits_importes)
-    return produits_importes
+                
+    if produits_importes:
+        sauvegarder_produits(produits_importes)
+        return produits_importes
+    
+    return []
 
 def sauvegarder_produits(produits):
     os.makedirs(os.path.dirname(LOCAL_STATE_FILE), exist_ok=True)
@@ -492,7 +499,8 @@ def admin_import_csv():
         chemin = os.path.join(r"C:\csv.aliexpress", fichier.filename)
         fichier.save(chemin)
         global PRODUITS
-        PRODUITS = charger_produits()
+        # On force le rechargement complet depuis le dossier d'import
+        PRODUITS = charger_produits(forcer_import=True)
     return redirect(url_for('admin'))
 
 @app.route('/admin/update_cat/<int:p_id>', methods=['POST'])
