@@ -9,7 +9,7 @@ import ast
 app = Flask(__name__)
 app.secret_key = 'cle_secrete_boutique_v8'
 
-# Identifiants PayPal NVP Live officiels stricts
+# Tes identifiants officiels stricts
 PAYPAL_API_USER = "alvadojuan834_api1.gmail.com".strip()
 PAYPAL_API_PWD = "6VUUOI36XVVXLICO".strip()
 PAYPAL_API_SIGNATURE = "AaRSU2y8OAIEIxg92K4Zpd.Ucl0BAZSsK.CC9mosIjzFIvsppRWx-4Y".strip()
@@ -303,7 +303,7 @@ HTML_CHECKOUT = """
     <div class="container" style="max-width: 650px;">
         <div style="background:white; border-radius: 12px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
             <h2 style="color: #2e1065; margin-bottom: 10px;">💳 Paiement Sécurisé via PayPal</h2>
-            <p style="color: #64748b; font-size: 14px; margin-bottom: 25px;">Remplissez vos coordonnées de livraison, puis validez pour régler via PayPal NVP.</p>
+            <p style="color: #64748b; font-size: 14px; margin-bottom: 25px;">Remplissez vos coordonnées de livraison, puis validez pour régler via PayPal NVP Live.</p>
             <form action="/process_order" method="POST">
                 <div style="margin-bottom: 15px;">
                     <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:13px;">Nom et Prénom</label>
@@ -351,7 +351,7 @@ HTML_SUCCESS = """
         <div style="background:white; border-radius: 12px; padding: 40px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
             <div style="font-size: 50px; margin-bottom: 15px;">🎉</div>
             <h2 style="color: #16a34a; font-size: 26px; margin-bottom: 10px;">Paiement PayPal validé avec succès !</h2>
-            <p style="color: #64748b; margin-bottom: 30px;">Merci <strong>{{ commande.nom }}</strong>. Votre transaction PayPal a bien été confirmée et encaissée.</p>
+            <p style="color: #64748b; margin-bottom: 30px;">Merci <strong>{{ commande.nom }}</strong>. Votre transaction Live a bien été confirmée et encaissée.</p>
             <a href="/" class="btn-buy" style="display:inline-block; width:auto; padding: 12px 30px;">Retourner à la boutique</a>
         </div>
     </div>
@@ -527,7 +527,7 @@ def process_order():
     host = request.headers.get('X-Forwarded-Host', request.host)
     base_url = f"https://{host}/"
 
-    # Requête NVP corrigée avec l'encodage officiel PayPal Live (Version 124.0)
+    # Appel NVP Live officiel pur
     nvp_data = {
         "USER": PAYPAL_API_USER,
         "PWD": PAYPAL_API_PWD,
@@ -558,19 +558,16 @@ def process_order():
                 }
                 return redirect(f"https://www.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token={token}")
             else:
-                error_msg = parsed.get('L_LONGMESSAGE0', ['Erreur inconnue de l\'API PayPal'])[0]
+                error_msg = parsed.get('L_LONGMESSAGE0', ['Erreur inconnue'])[0]
                 error_code = parsed.get('L_ERRORCODE0', [''])[0]
                 return f"""
                 <div style="font-family:sans-serif; text-align:center; padding:50px; background:#f3f4f6; height:100vh;">
                     <div style="background:white; max-width:600px; margin:0 auto; padding:30px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
-                        <h2 style="color:#e11d48; margin-bottom:15px;">⚠️ Erreur PayPal ({error_code})</h2>
+                        <h2 style="color:#e11d48; margin-bottom:15px;">TIMESTAMP=2026-06-18&ACK=Failure&VERSION=124.0&BUILD=0&ERRORCODE={error_code}</h2>
                         <p style="color:#4b5563; font-size:14px; line-height:1.6; margin-bottom:20px;">
-                            <strong>Message de PayPal :</strong> {error_msg}
+                            <strong>L_LONGMESSAGE0={error_msg}</strong>
                         </p>
-                        <p style="color:#64748b; font-size:13px; margin-bottom:25px;">
-                            Vérifie que ton compte PayPal Live autorise bien les paiements par API externe sur ton tableau de bord marchand.
-                        </p>
-                        <a href="/cart" style="background:#6d28d9; color:white; padding:12px 24px; border-radius:6px; text-decoration:none; font-weight:bold;">⬅️ Retour au panier</a>
+                        <a href="/cart" style="background:#6d28d9; color:white; padding:12px 24px; border-radius:6px; text-decoration:none; font-weight:bold;">Retour au panier</a>
                     </div>
                 </div>
                 """
