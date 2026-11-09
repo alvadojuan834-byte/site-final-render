@@ -10,13 +10,14 @@ app = Flask(__name__)
 app.secret_key = 'cle_secrete_boutique_v8'
 
 # ==========================================
-# IDENTIFIANTS PAYPAL NVP OFFICIELS & TUNNEL
+# IDENTIFIANTS PAYPAL NVP OFFICIELS (MODE PRODUCTION LIVE)
 # ==========================================
 PAYPAL_API_USER = "alvadojuan834_api1.gmail.com"
 PAYPAL_API_PWD = "6VUUOI36XVVXLICO"
 PAYPAL_API_SIGNATURE = "AaRSU2y8OAIEIxg92K4Zpd.Ucl0BAZSsK.CC9mosIjzFIvsppRWx-4Y"
-PAYPAL_URL = "https://api-3t.sandbox.paypal.com/nvp"
+PAYPAL_URL = "https://api-3t.paypal.com/nvp"
 
+# Mot de passe secret pour l'administration
 ADMIN_PASSWORD = "monpassadmin123"
 
 TRADUCTIONS = {
@@ -560,7 +561,7 @@ def process_order():
     ville = request.form.get('ville', '')
     pays = request.form.get('pays', 'FR')
     
-    # Appel API PayPal NVP (SetExpressCheckout)
+    # Appel API PayPal NVP Live (Production Réelle)
     nvp_data = {
         'USER': PAYPAL_API_USER,
         'PWD': PAYPAL_API_PWD,
@@ -585,11 +586,12 @@ def process_order():
             if response_params.get('ACK', [''])[0].upper() in ['SUCCESS', 'SUCCESSWITHWARNING']:
                 token = response_params.get('TOKEN', [''])[0]
                 session['pending_order'] = {'nom': nom, 'total': total}
-                return redirect(f"https://www.sandbox.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token={token}")
+                # Redirection vers le vrai tunnel de paiement PayPal Live
+                return redirect(f"https://www.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token={token}")
             else:
-                return f"Erreur PayPal NVP: {res_body}", 400
+                return f"Erreur PayPal NVP Live: {res_body}", 400
     except Exception as e:
-        return f"Erreur de communication PayPal: {e}", 500
+        return f"Erreur de communication PayPal Live: {e}", 500
 
 @app.route('/paypal_success')
 def paypal_success():
