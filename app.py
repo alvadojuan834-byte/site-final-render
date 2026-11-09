@@ -9,7 +9,6 @@ import ast
 app = Flask(__name__)
 app.secret_key = 'cle_secrete_boutique_v8'
 
-# Tes identifiants officiels stricts
 PAYPAL_API_USER = "alvadojuan834_api1.gmail.com".strip()
 PAYPAL_API_PWD = "6VUUOI36XVVXLICO".strip()
 PAYPAL_API_SIGNATURE = "AaRSU2y8OAIEIxg92K4Zpd.Ucl0BAZSsK.CC9mosIjzFIvsppRWx-4Y".strip()
@@ -527,7 +526,6 @@ def process_order():
     host = request.headers.get('X-Forwarded-Host', request.host)
     base_url = f"https://{host}/"
 
-    # Appel NVP Live officiel pur
     nvp_data = {
         "USER": PAYPAL_API_USER,
         "PWD": PAYPAL_API_PWD,
@@ -662,7 +660,7 @@ def admin_import_csv():
                 image = ligne.get('Product Image Url') or ligne.get('image') or 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500'
                 if ',' in image: image = image.split(',')[0].strip()
                 galerie_raw = ligne.get('Main images url') or ligne.get('galerie') or ''
-                galerie = [img.strip() for img in galerie_raw.split(',') if img.strip()]
+                galerie = [img.strip() for img in galerie_run.split(',') if img.strip()] if 'galerie_run' in locals() else [img.strip() for img in galerie_raw.split(',') if img.strip()]
                 if not galerie: galerie = [image]
                 desc = ligne.get('Product description html') or ligne.get('description') or 'Aucune description disponible.'
                 
