@@ -2,8 +2,6 @@
 from datetime import datetime
 import os
 import csv
-import urllib.parse
-import urllib.request
 import ast
 import requests
 
@@ -475,8 +473,6 @@ def get_paypal_access_token():
             auth=(PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET),
             data={"grant_type": "client_credentials"}
         )
-        print("PAYPAL AUTH STATUS:", res.status_code)
-        print("PAYPAL AUTH RESPONSE:", res.text)
         if res.status_code == 200:
             return res.json().get("access_token")
     except Exception as e:
@@ -509,9 +505,6 @@ def api_paypal_create_order():
     }
 
     res = requests.post(f"{PAYPAL_URL}/v2/checkout/orders", headers=headers, json=payload)
-    print("CREATE ORDER STATUS:", res.status_code)
-    print("CREATE ORDER RESPONSE:", res.text)
-    
     if res.status_code in [200, 201]:
         return jsonify(res.json())
     return jsonify({"error": res.text}), 500
@@ -538,9 +531,6 @@ def api_paypal_capture_order():
 
     res = requests.post(f"{PAYPAL_URL}/v2/checkout/orders/{order_id}/capture", headers=headers)
     res_data = res.json()
-    
-    print("CAPTURE ORDER STATUS:", res.status_code)
-    print("CAPTURE ORDER RESPONSE:", res_data)
 
     if res.status_code in [200, 201] and res_data.get("status") == "COMPLETED":
         items = session.get('cart', [])
@@ -696,8 +686,6 @@ def admin_delete(p_id):
     PRODUITS = [p for p in PRODUITS if p['id'] != p_id]
     sauvegarder_produits(PRODUITS)
     return redirect(url_for('admin'))
-
-@app.read('/admin/update_cat/<int:p_id>', methods=['POST']) if hasattr(app, 'read') else None
 
 @app.route('/admin/update_cat/<int:p_id>', methods=['POST'])
 def admin_update_cat(p_id):
