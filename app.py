@@ -9,20 +9,22 @@ import ast
 app = Flask(__name__)
 app.secret_key = 'cle_secrete_boutique_v8'
 
+# Identifiants PayPal NVP officiels (Strictement préservés et intacts)
 PAYPAL_API_USER = "alvadojuan834_api1.gmail.com"
 PAYPAL_API_PWD = "6VUUOI36XVVXLICO"
 PAYPAL_API_SIGNATURE = "AaRSU2y8OAIEIxg92K4Zpd.Ucl0BAZSsK.CC9mosIjzFIvsppRWx-4Y"
 PAYPAL_URL = "https://api-3t.sandbox.paypal.com/nvp"
 
+# Mot de passe secret en clair pour accéder à l'administration
 ADMIN_PASSWORD = "monpassadmin123"
 
 TRADUCTIONS = {
-    "fr": {"shop": "FlashDeal Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Panier", "all": "Toutes les catégories", "buy": "Acheter", "total": "Total", "checkout": "🔒 Valider la commande", "empty": "Votre panier est vide.", "color": "Couleur", "size": "Taille", "desc": "Description du produit", "search_placeholder": "Rechercher un produit..."},
-    "be": {"shop": "FlashDeal Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Panier", "all": "Toutes les catégories", "buy": "Acheter", "total": "Total", "checkout": "🔒 Valider la commande", "empty": "Votre panier est vide wesh.", "color": "Couleur", "size": "Taille", "desc": "Description du produit", "search_placeholder": "Rechercher un produit..."},
-    "en": {"shop": "FlashDeal Direct", "promo": "🔥 AliExpress Boost Promos 🔥", "cart": "Cart", "all": "All categories", "buy": "Buy Now", "total": "Total", "checkout": "🔒 Checkout", "empty": "Your cart is empty.", "color": "Color", "size": "Size", "desc": "Product description", "search_placeholder": "Search a product..."},
-    "de": {"shop": "FlashDeal Direct", "promo": "🔥 AliExpress Boost Angebote 🔥", "cart": "Warenkorb", "all": "Alle Kategorien", "buy": "Kaufen", "total": "Gesamt", "checkout": "🔒 Zur Kasse", "empty": "Ihr Warenkorb ist leer.", "color": "Farbe", "size": "Größe", "desc": "Produktbeschreibung", "search_placeholder": "Produkt suchen..."},
-    "es": {"shop": "FlashDeal Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Carrito", "all": "Todas las categorías", "buy": "Comprar", "total": "Total", "checkout": "🔒 Tramitar pedido", "empty": "Tu carrito está vacío.", "color": "Color", "talla": "Talla", "desc": "Descripción del producto", "search_placeholder": "Buscar un producto..."},
-    "nl": {"shop": "FlashDeal Direct", "promo": "🔥 AliExpress Boost Promo's 🔥", "cart": "Winkelmand", "all": "Alle categorieën", "buy": "Kopen", "total": "Totaal", "checkout": "🔒 Afrekenen", "empty": "Je winkelmand is leeg.", "color": "Kleur", "size": "Maat", "desc": "Produktbeschrijving", "search_placeholder": "Zoek een product..."}
+    "fr": {"shop": "MonShop Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Panier", "all": "Toutes les catégories", "buy": "Acheter", "total": "Total", "checkout": "🔒 Valider la commande", "empty": "Votre panier est vide.", "color": "Couleur", "size": "Taille", "desc": "Description du produit", "search_placeholder": "Rechercher un produit..."},
+    "be": {"shop": "MonShop Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Panier", "all": "Toutes les catégories", "buy": "Acheter", "total": "Total", "checkout": "🔒 Valider la commande", "empty": "Votre panier est vide wesh.", "color": "Couleur", "size": "Taille", "desc": "Description du produit", "search_placeholder": "Rechercher un produit..."},
+    "en": {"shop": "MonShop Direct", "promo": "🔥 AliExpress Boost Promos 🔥", "cart": "Cart", "all": "All categories", "buy": "Buy Now", "total": "Total", "checkout": "🔒 Checkout", "empty": "Your cart is empty.", "color": "Color", "size": "Size", "desc": "Product description", "search_placeholder": "Search a product..."},
+    "de": {"shop": "MonShop Direct", "promo": "🔥 AliExpress Boost Angebote 🔥", "cart": "Warenkorb", "all": "Alle Kategorien", "buy": "Kaufen", "total": "Gesamt", "checkout": "🔒 Zur Kasse", "empty": "Ihr Warenkorb ist leer.", "color": "Farbe", "size": "Größe", "desc": "Produktbeschreibung", "search_placeholder": "Produkt suchen..."},
+    "es": {"shop": "MonShop Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Carrito", "all": "Todas las categorías", "buy": "Comprar", "total": "Total", "checkout": "🔒 Tramitar pedido", "empty": "Tu carrito está vacío.", "color": "Color", "talla": "Talla", "desc": "Descripción del producto", "search_placeholder": "Buscar un producto..."},
+    "nl": {"shop": "MonShop Direct", "promo": "🔥 AliExpress Boost Promo's 🔥", "cart": "Winkelmand", "all": "Alle categorieën", "buy": "Kopen", "total": "Totaal", "checkout": "🔒 Afrekenen", "empty": "Je winkelmand is leeg.", "color": "Kleur", "size": "Maat", "desc": "Produktbeschrijving", "search_placeholder": "Zoek een product..."}
 }
 
 CATEGORIES = {
@@ -35,6 +37,20 @@ CATEGORIES = {
 }
 
 LOCAL_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "produits_etat.csv")
+
+def determiner_categorie(nom_produit):
+    nom_lower = nom_produit.lower()
+    if any(k in nom_lower for k in ['phone', 'telephone', 'audio', 'écouteur', 'casque', 'bluetooth', 'chargeur', 'cable', 'usb']):
+        return "telephonie"
+    elif any(k in nom_lower for k in ['chauffage', 'radiateur', 'maison', 'lampe', 'coussin', 'tapis', 'rideau', 'nettoyage']):
+        return "chauffage"
+    elif any(k in nom_lower for k in ['cuisine', 'cuisson', 'couteau', 'poêle', 'gourde', 'lunch', 'mixeur', 'fraise']):
+        return "cuisine"
+    elif any(k in nom_lower for k in ['sport', 'fitness', 'vélo', 'musculation', 'gant', 'camping', 'voyage', 'ballon']):
+        return "sport"
+    elif any(k in nom_lower for k in ['voiture', 'auto', 'phare', 'caméra', 'LED', 'usb', 'support']):
+        return "eclairage"
+    return "general"
 
 def parser_dossier_csv():
     produits_importes = []
@@ -50,7 +66,7 @@ def parser_dossier_csv():
                 with open(chemin_complet, mode='r', encoding='utf-8-sig', errors='ignore') as f:
                     lecteur = csv.DictReader(f)
                     for ligne in lecteur:
-                        nom = ligne.get('Title') or ligne.get('nom') or 'Produit AliExpress'
+                        nom = ligne.get('Title') or ligne.get('nom') or 'Produit MonShop'
                         prix = ligne.get('Sale price') or ligne.get('prix') or '19.99'
                         if not prix: prix = '19.99'
                         image = ligne.get('Product Image Url') or ligne.get('image') or 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500'
@@ -60,9 +76,11 @@ def parser_dossier_csv():
                         if not galerie: galerie = [image]
                         desc = ligne.get('Product description html') or ligne.get('description') or 'Aucune description disponible.'
                         
+                        cat = determiner_categorie(nom)
+                        
                         produits_importes.append({
                             "id": c, "nom": nom, "prix": str(prix), "image": image,
-                            "galerie": galerie[:5], "categorie": "general", "description": str(desc)[:300] + "..."
+                            "galerie": galerie[:5], "categorie": cat, "description": str(desc)[:300] + "..."
                         })
                         c += 1
             except Exception as e:
@@ -70,29 +88,30 @@ def parser_dossier_csv():
     return produits_importes
 
 def charger_produits():
-    # Force le re-scan complet direct du dossier C:\csv.aliexpress à chaque démarrage pour ne plus être bloqué
+    # Balayage complet et automatique de TOUS les fichiers CSV pour dépasser les 268 articles
     produits_importes = parser_dossier_csv()
+    if not produits_importes and os.path.exists(LOCAL_STATE_FILE):
+        produits = []
+        try:
+            with open(LOCAL_STATE_FILE, mode='r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    row['id'] = int(row['id'])
+                    galerie_raw = row.get('galerie', '')
+                    if galerie_raw.startswith('['):
+                        try:
+                            row['galerie'] = ast.literal_eval(galerie_raw)
+                        except:
+                            row['galerie'] = [row.get('image', '')]
+                    else:
+                        row['galerie'] = [img.strip() for img in galerie_raw.split(',') if img.strip()]
+                    produits.append(row)
+            if produits:
+                return produits
+        except:
+            pass
+
     if not produits_importes:
-        if os.path.exists(LOCAL_STATE_FILE):
-            produits = []
-            try:
-                with open(LOCAL_STATE_FILE, mode='r', encoding='utf-8') as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        row['id'] = int(row['id'])
-                        galerie_raw = row.get('galerie', '')
-                        if galerie_raw.startswith('['):
-                            try:
-                                row['galerie'] = ast.literal_eval(galerie_raw)
-                            except:
-                                row['galerie'] = [row.get('image', '')]
-                        else:
-                            row['galerie'] = [img.strip() for img in galerie_raw.split(',') if img.strip()]
-                        produits.append(row)
-                if produits:
-                    return produits
-            except:
-                pass
         produits_importes = [{
             "id": 0, "nom": "Radiateur Électrique à Convection 2000W", "prix": "49.99",
             "image": "https://images.unsplash.com/photo-1585338107529-13afc5f02586?w=500",
@@ -160,7 +179,7 @@ CSS_STYLED = """
 HTML_INDEX = """
 <!DOCTYPE html>
 <html lang="{{ lang }}">
-<head><meta charset="UTF-8"><title>FlashDeal Direct</title>""" + CSS_STYLED + """</head>
+<head><meta charset="UTF-8"><title>MonShop Direct</title>""" + CSS_STYLED + """</head>
 <body>
     <div class="header">
         <a href="/?lang={{ lang }}" class="brand-logo">🛍️ {{ t.shop }}</a>
@@ -201,7 +220,7 @@ HTML_INDEX = """
             {% endfor %}
         </div>
 
-        <div class="sec-header">🚀 Catalogue AliExpress {% if active_cat %}- {{ categories.get(active_cat, '') }}{% endif %} ({{ produits|length }} articles)</div>
+        <div class="sec-header">Flash Deal Direct 🎁🎁🎁 {% if active_cat %}- {{ categories.get(active_cat, '') }}{% endif %} ({{ produits|length }} articles)</div>
         <div class="grid">
             {% for p in produits %}
             <div class="card">
@@ -310,7 +329,7 @@ HTML_CHECKOUT = """
 <head><meta charset="UTF-8"><title>Validation Commande</title>""" + CSS_STYLED + """</head>
 <body>
     <div class="header">
-        <a href="/" class="brand-logo">🛍️ FlashDeal Direct</a>
+        <a href="/" class="brand-logo">🛍️ MonShop Direct</a>
         <div class="promo-banner">🔥 Paiement Sécurisé</div>
         <a href="/cart" style="color:white; text-decoration:none; font-weight:bold;">⬅️ Panier</a>
     </div>
@@ -362,7 +381,7 @@ HTML_SUCCESS = """
 <head><meta charset="UTF-8"><title>Commande Validée</title>""" + CSS_STYLED + """</head>
 <body>
     <div class="header">
-        <a href="/" class="brand-logo">🛍️ FlashDeal Direct</a>
+        <a href="/" class="brand-logo">🛍️ MonShop Direct</a>
     </div>
     
     <div class="container" style="max-width: 750px;">
@@ -414,7 +433,7 @@ HTML_ADMIN = """
     </div>
     <div class="container">
         <div style="background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 25px;">
-            <h3 style="color: #2e1065; margin-bottom: 10px;">📂 Importer un fichier CSV (AliExpress)</h3>
+            <h3 style="color: #2e1065; margin-bottom: 10px;">📂 Importer un fichier CSV</h3>
             <p style="color: #64748b; font-size: 13px; margin-bottom: 15px;">Sélectionnez un fichier `.csv` pour l'ajouter instantanément au catalogue avec toutes ses photos.</p>
             <form action="/admin/import_csv" method="POST" enctype="multipart/form-data" style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
                 <input type="file" name="fichier_csv" accept=".csv" required style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; background: #f8fafc;">
