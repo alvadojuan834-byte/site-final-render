@@ -44,7 +44,7 @@ def parser_dossier_csv():
     if not os.path.exists(dossier_csv):
         return []
 
-    c = 0
+    c = 0  # Compteur global en dehors de la boucle pour indexer TOUS les fichiers sans collision
     for fichier in os.listdir(dossier_csv):
         if fichier.endswith(".csv"):
             chemin_complet = os.path.join(dossier_csv, fichier)
@@ -536,4 +536,3 @@ def process_order():
     if not items:
         return redirect(url_for('home'))
     total = sum(float(item['prix']) for item in items if item['prix'].replace('.','',1).isdigit())
-    # ... reste du traitement de commande ...
