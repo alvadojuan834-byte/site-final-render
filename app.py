@@ -9,10 +9,10 @@ import ast
 app = Flask(__name__)
 app.secret_key = 'cle_secrete_boutique_v8'
 
-# Identifiants PayPal NVP Live officiels
-PAYPAL_API_USER = "alvadojuan834_api1.gmail.com"
-PAYPAL_API_PWD = "6VUUOI36XVVXLICO"
-PAYPAL_API_SIGNATURE = "AaRSU2y8OAIEIxg92K4Zpd.Ucl0BAZSsK.CC9mosIjzFIvsppRWx-4Y"
+# Identifiants PayPal NVP Live (nettoyés avec .strip() pour éviter tout espace invisible)
+PAYPAL_API_USER = "alvadojuan834_api1.gmail.com".strip()
+PAYPAL_API_PWD = "6VUUOI36XVVXLICO".strip()
+PAYPAL_API_SIGNATURE = "AaRSU2y8OAIEIxg92K4Zpd.Ucl0BAZSsK.CC9mosIjzFIvsppRWx-4Y".strip()
 PAYPAL_URL = "https://api-3t.paypal.com/nvp"
 
 ADMIN_PASSWORD = "monpassadmin123"
