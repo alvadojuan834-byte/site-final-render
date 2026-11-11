@@ -41,25 +41,24 @@ CATEGORIES = {
 LOCAL_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mes_produits_sauves.csv")
 
 def calculer_prix_marge(prix_brut_str):
-    """Applique la marge intelligente par palier sur le prix brut AliExpress"""
+    """Applique la marge intelligente par palier sur le prix brut"""
     try:
         prix_base = float(str(prix_brut_str).replace(',', '.'))
     except:
         return "19.99"
     
     if prix_base < 15.0:
-        prix_final = prix_base * 2.0  # x2 sur les petits objets
+        prix_final = prix_base * 2.0  # x2 sur les petits objets (< 15€)
     elif prix_base <= 100.0:
-        prix_final = prix_base + 15.0  # +15 € sur les produits moyens
+        prix_final = prix_base + 15.0  # +15 € sur les produits moyens (15€ - 100€)
     else:
-        prix_final = prix_base + 30.0  # +30 € max sur les articles chers
+        prix_final = prix_base + 30.0  # +30 € max sur les articles chers (> 100€)
         
     return f"{prix_final:.2f}"
 
 def parser_ligne_produit(ligne, current_id):
     nom = ligne.get('Title') or ligne.get('nom') or 'Produit AliExpress'
     
-    # Recherche élargie pour s'adapter à toutes les variantes de colonnes de prix dans les CSV
     prix_brut = (
         ligne.get('Sale price') or 
         ligne.get('price') or 
@@ -109,8 +108,8 @@ def parser_ligne_produit(ligne, current_id):
     }
 
 def charger_produits():
+    produits = []
     if os.path.exists(LOCAL_STATE_FILE):
-        produits = []
         try:
             with open(LOCAL_STATE_FILE, mode='r', encoding='utf-8') as f:
                 reader = csv.DictReader(f)
@@ -124,21 +123,27 @@ def charger_produits():
                             row['galerie'] = [row.get('image', '')]
                     else:
                         row['galerie'] = [img.strip() for img in galerie_raw.split(',') if img.strip()]
+                    
+                    # Sécurité : Si le prix enregistré était un prix brut non margé, on s'assure qu'il passe par la marge
+                    # (On vérifie s'il n'a pas déjà été calculé ou on le recalcule proprement via la formule)
+                    prix_actuel = row.get('prix', '19.99')
+                    row['prix'] = calculer_prix_marge(prix_actuel)
+                    
                     produits.append(row)
             if produits:
                 return produits
-        except:
-            pass
+        except Exception as e:
+            print(f"Erreur chargement etat local: {e}")
 
+    # Fallback sur le CSV brut si besoin
     produits_importes = []
     chemin_csv = "mes_produits_sauves.csv"
-    
-    if os.path.exists(chemin_csv):
+    if os.path.exists(chemin_csv) and chemin_csv != LOCAL_STATE_FILE:
         try:
             with open(chemin_csv, mode='r', encoding='utf-8') as f:
                 lecteur = csv.DictReader(f)
-                for ligne in lecteur:
-                    produits_importes.append(ligne)
+                for idx, ligne in enumerate(lecteur):
+                    produits_importes.append(parser_ligne_produit(ligne, idx))
         except Exception as e:
             print(f"Erreur lecture {chemin_csv}: {e}")
             
