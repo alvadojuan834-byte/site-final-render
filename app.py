@@ -1,6 +1,7 @@
 ﻿from flask import Flask, render_template_string, request, redirect, url_for, session
-from datetime import datetime
 import os
+import glob
+import pandas as pd
 import urllib.parse
 import urllib.request
 
@@ -11,8 +12,92 @@ PAYPAL_API_USER = "alvadojuan834_api1.gmail.com"
 PAYPAL_API_PWD = "6VUUOI36XVVXLICO"
 PAYPAL_API_SIGNATURE = "AaRSU2y8OAIEIxg92K4Zpd.Ucl0BAZSsK.CC9mosIjzFIvsppRWx-4Y"
 PAYPAL_URL = "https://api-3t.paypal.com/nvp"
-
 ADMIN_PASSWORD = "monpassadmin123"
+
+# Chargement automatique et réel des CSV depuis le dossier Bureau/csv.aliexpress
+def charger_vrais_produits():
+    produits = []
+    dossier_csv = os.path.expanduser(r"~\Desktop\csv.aliexpress")
+    fichiers = glob.glob(os.path.join(dossier_csv, "*.csv"))
+    
+    id_compteur = 1
+    for fichier in fichiers:
+        try:
+            df = pd.read_csv(fichier, encoding='utf-8', on_bad_lines='skip')
+        except Exception:
+            try:
+                df = pd.read_csv(fichier, encoding='latin1', on_bad_lines='skip')
+            except Exception:
+                continue
+                
+        # Normalisation des colonnes courantes AliExpress
+        cols = {c.lower(): c for c in df.columns}
+        col_nom = next((cols[c] for c in ['title', 'product title', 'nom', 'subject'] if c in cols), df.columns[0] if len(df.columns) > 0 else None)
+        col_prix = next((cols[c] for c in ['price', 'sale price', 'prix', 'current price'] if c in cols), df.columns[1] if len(df.columns) > 1 else None)
+        col_img = next((cols[c] for c in ['image', 'img', 'picture', 'product image'] if c in cols), df.columns[2] if len(df.columns) > 2 else None)
+        col_desc = next((cols[c] for c in ['description', 'desc', 'details'] if c in cols), None)
+
+        if not col_nom or not col_prix:
+            continue
+
+        for _, row in df.iterrows():
+            nom = str(row.get(col_nom, "Produit sans nom"))
+            if nom == "nan" or not nom.strip():
+                continue
+                
+            prix_brut = str(row.get(col_prix, "0"))
+            # Nettoyage propre du prix
+            prix_clean = "".join([c for c in prix_brut if c.isdigit() or c == '.'])
+            try:
+                prix = str(round(float(prix_clean), 2))
+            except:
+                prix = "19.99"
+
+            img = str(row.get(col_img, "https://ae01.alicdn.com/kf.jpg"))
+            if img == "nan" or not img.startswith('http'):
+                img = "https://ae01.alicdn.com/kf.jpg"
+
+            desc = str(row.get(col_desc, "")) if col_desc and str(row.get(col_desc, "")) != "nan" else nom
+
+            cat = classifier_produit(nom, desc)
+
+            produits.append({
+                "id": id_compteur,
+                "nom": nom,
+                "prix": prix,
+                "image": img,
+                "galerie": [img],
+                "categorie": cat,
+                "description": desc,
+                "couleurs": ["Standard", "Noir", "Blanc"],
+                "tailles": ["Standard"]
+            })
+            id_compteur += 1
+            
+    return produits
+
+def classifier_produit(nom, desc):
+    texte = (str(nom) + " " + str(desc)).lower()
+    if any(k in texte for k in ['heater', 'chauffage', 'radiateur', 'fan heater', 'climatiseur', 'convecteur']):
+        return "chauffage"
+    elif any(k in texte for k in ['pokemon', 'pokémon', 'card', 'cards', 'tcg', 'booster']):
+        return "pokemon"
+    elif any(k in texte for k in ['pc', 'computer', 'ordinateur', 'laptop', 'mini pc', 'screen', 'ecran', 'cpu', 'gpu', 'ssd']):
+        return "pc"
+    elif any(k in texte for k in ['gaming', 'gamer', 'keyboard', 'mouse', 'controller', 'manette', 'headset', 'ps5', 'xbox', 'switch']):
+        return "gaming"
+    elif any(k in texte for k in ['hifi', 'audio', 'headphone', 'earphone', 'speaker', 'enceinte', 'bluetooth', 'microphone']):
+        return "hifi"
+    elif any(k in texte for k in ['phone', 'smartphone', 'telephone', 'charger', 'chargeur', 'cable', 'iphone', 'samsung', 'coque']):
+        return "telephonie"
+    elif any(k in texte for k in ['sport', 'fitness', 'bike', 'vélo', 'gym', 'running', 'yoga']):
+        return "sport"
+    elif any(k in texte for k in ['lamp', 'lampe', 'light', 'eclairage', 'led', 'auto', 'car', 'voiture']):
+        return "eclairage"
+    else:
+        return "general"
+
+PRODUITS = charger_vrais_produits()
 
 TRADUCTIONS = {
     "fr": {"shop": "Mon Shop Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Panier", "all": "Toutes les catégories", "buy": "Acheter", "total": "Total", "checkout": "🔒 Valider la commande", "empty": "Votre panier est vide.", "color": "Couleur", "size": "Taille", "desc": "Description & Caractéristiques", "search_placeholder": "Rechercher un produit..."},
@@ -34,97 +119,6 @@ CATEGORIES = {
     "eclairage": "💡 Éclairage & Auto",
     "general": "✨ Tendances Générales"
 }
-
-# CATALOGUE EMBARQUÉ EN DUR (Indestructible face aux redémarrages et arrêts de Render)
-PRODUITS = [
-    {
-        "id": 1,
-        "nom": "[Garantie 3 ans] Mini PC Gamer Portable 2026 Intel Core i9 10980HK Windows 11 Mini Ordinateur de Jeu PC de Bureau i9 Mini PC",
-        "prix": "210.69",
-        "image": "https://ae01.alicdn.com/kf.jpg", # URL d'illustration par défaut ou image principale
-        "galerie": [
-            "https://ae01.alicdn.com/kf.jpg",
-            "https://ae01.alicdn.com/kf2.jpg",
-            "https://ae01.alicdn.com/kf3.jpg"
-        ],
-        "categorie": "pc",
-        "description": "Processeur ultra puissant Intel Core i9 10980HK. Idéal pour le gaming intensif et le multitâche lourd. Windows 11 préinstallé. Compact, silencieux et performant avec double ventilation et connectique complète (HDMI, USB-C, Wi-Fi 6).",
-        "couleurs": ["Gris Sidéral", "Noir Minuit"],
-        "tailles": ["16GB RAM + 512GB SSD", "32GB RAM + 1TB SSD", "64GB RAM + 2TB SSD"]
-    },
-    {
-        "id": 2,
-        "nom": "Radiateur Soufflant Céramique Compact 2000W - Chauffage d'Appoint Salon et Chambre",
-        "prix": "34.99",
-        "image": "https://ae01.alicdn.com/kf/heater1.jpg",
-        "galerie": ["https://ae01.alicdn.com/kf/heater1.jpg"],
-        "categorie": "chauffage",
-        "description": "Chauffage d'appoint ultra-rapide en céramique PTC. Thermostat réglable, sécurité anti-surchauffe et basculement. Silencieux et économique.",
-        "couleurs": ["Blanc", "Noir"],
-        "tailles": ["Standard 2000W"]
-    },
-    {
-        "id": 3,
-        "nom": "Boîte de 100 Cartes Pokémon TCG Brillantes - Édition Limitée GX VMAX",
-        "prix": "18.50",
-        "image": "https://ae01.alicdn.com/kf/poke1.jpg",
-        "galerie": ["https://ae01.alicdn.com/kf/poke1.jpg"],
-        "categorie": "pokemon",
-        "description": "Lot exceptionnel de 100 cartes Pokémon brillantes certifiées TCG. Cartes rares GX, VMAX et holographiques pour collectionneurs.",
-        "couleurs": ["Multicolore"],
-        "tailles": ["Boîte de 100 cartes"]
-    },
-    {
-        "id": 4,
-        "nom": "Manette Sans Fil Pro Gaming RGB pour PS4 / PC / Switch - Ergonomique",
-        "prix": "27.99",
-        "image": "https://ae01.alicdn.com/kf/game1.jpg",
-        "galerie": ["https://ae01.alicdn.com/kf/game1.jpg"],
-        "categorie": "gaming",
-        "description": "Manette de jeu haute précision avec rétroéclairage RGB, joysticks anti-dérapants et vibrations double choc immersives.",
-        "couleurs": ["Noir Carbone", "Blanc Nacré", "Rouge Fatal"],
-        "tailles": ["Standard Wireless"]
-    }
-]
-
-# Fonction de tri strict multilingue verrouillée (ordre de priorité anti-mélange)
-def classifier_produit(nom, desc):
-    texte = (str(nom) + " " + str(desc)).lower()
-    
-    # 1. Chauffage & Confort (prioritaire pour éviter les faux positifs)
-    if any(k in texte for k in ['heater', 'chauffage', 'radiateur', 'radiateurs', 'fan heater', 'climatiseur', 'climatisation', 'convecteur', 'cheminée']):
-        return "chauffage"
-    
-    # 2. Cartes & Goodies Pokémon
-    elif any(k in texte for k in ['pokemon', 'pokémon', 'card', 'cards', 'carte pokémon', 'cartes pokémon', 'tcg', 'booster box']):
-        return "pokemon"
-    
-    # 3. PC & Informatique (Strictement séparé du chauffage et du gaming basique)
-    elif any(k in texte for k in ['pc', 'computer', 'ordinateur', 'laptop', 'mini pc', 'screen', 'ecran', 'cpu', 'gpu', 'monitor', 'ssd', 'ddr4', 'ddr5']):
-        return "pc"
-    
-    # 4. Gaming & Consoles
-    elif any(k in texte for k in ['gaming', 'gamer', 'keyboard', 'clavier gamer', 'mouse', 'souris gamer', 'controller', 'manette', 'headset gaming', 'ps5', 'xbox', 'nintendo', 'switch']):
-        return "gaming"
-    
-    # 5. Hi-Fi & Audio
-    elif any(k in texte for k in ['hifi', 'audio', 'headphone', 'casque audio', 'earphone', 'ecouteurs', 'speaker', 'enceinte', 'bluetooth speaker', 'soundbar', 'mp3', 'microphone', 'mic']):
-        return "hifi"
-    
-    # 6. Téléphonie & Accessoires
-    elif any(k in texte for k in ['phone', 'smartphone', 'telephone', 'téléphone', 'charger', 'chargeur', 'cable usb', 'iphone', 'samsung galaxy', 'case', 'coque de protection']):
-        return "telephonie"
-    
-    # 7. Sport & Loisirs
-    elif any(k in texte for k in ['sport', 'fitness', 'bike', 'vélo', 'gym', 'musculation', 'running', 'yoga', 'camping']):
-        return "sport"
-    
-    # 8. Éclairage & Auto
-    elif any(k in texte for k in ['lamp', 'lampe', 'light', 'eclairage', 'led strip', 'auto', 'car', 'voiture', 'bulb', 'ampoule']):
-        return "eclairage"
-        
-    else:
-        return "general"
 
 CSS_STYLED = """
 <style>
@@ -227,7 +221,6 @@ HTML_INDEX = """
 </html>
 """
 
-# Fiche produit ultra-pro (enrichie, avec vrais blocs de réassurance et description détaillée)
 HTML_PRODUCT = """
 <!DOCTYPE html>
 <html lang="{{ lang }}">
@@ -278,7 +271,6 @@ HTML_PRODUCT = """
                     <button type="submit" class="btn-buy" style="padding: 14px; font-size: 16px; margin-top: 10px;">{{ t.buy }}</button>
                 </form>
 
-                <!-- Blocs de réassurance e-commerce pro -->
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 25px 0; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 12px; font-weight: 700; color: #334155;">
                     <div>🚚 Livraison Rapide & Suivie</div>
                     <div>🔒 Paiement 100% Sécurisé</div>
@@ -413,7 +405,7 @@ HTML_ADMIN = """
     </div>
     <div class="container">
         <div style="background: white; padding: 25px; border-radius: 12px;">
-            <h3 style="color: #2e1065; margin-bottom: 15px;">⚙️ Gestion des produits intégrés ({{ produits|length }} articles)</h3>
+            <h3 style="color: #2e1065; margin-bottom: 15px;">⚙️ Gestion des vrais produits CSV ({{ produits|length }} articles)</h3>
             <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
                 <tr style="border-bottom: 2px solid #e2e8f0; text-align: left;">
                     <th style="padding: 10px;">ID</th><th style="padding: 10px;">Nom</th><th style="padding: 10px;">Prix</th><th style="padding: 10px;">Catégorie</th>
