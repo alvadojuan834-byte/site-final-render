@@ -119,7 +119,7 @@ def charger_produits():
         except:
             pass
 
-    # 2. Sinon (premier lancement absolu), on va chercher les fichiers dans C:\csv.aliexpress et on les sauvegarde en dur
+    # 2. Sinon, on va chercher les fichiers dans C:\csv.aliexpress et on les sauvegarde en dur
     produits_importes = parser_dossier_csv()
     if produits_importes:
         sauvegarder_produits(produits_importes)
@@ -536,55 +536,58 @@ def admin_delete(p_id):
 @app.route('/admin/import_csv', methods=['POST'])
 def admin_import_csv():
     if not session.get('is_admin'): return redirect(url_for('admin_login'))
-    fichier = request.files.get('fichier_csv')
-    if fichier:
-        dossier_temp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "temp_csv")
-        os.makedirs(dossier_temp, exist_ok=True)
-        chemin_fichier = os.path.join(dossier_temp, fichier.filename)
-        fichier.save(chemin_fichier)
-        
-        nouveaux_produits = []
+    fich = request.files.get('fichier_csv')
+    if fich:
         try:
-            with open(chemin_fichier, mode='r', encoding='utf-8-sig', errors='ignore') as f:
-                lecteur = csv.DictReader(f)
-                c = 0
-                for ligne in lecteur:
-                    nom = ligne.get('Title') or ligne.get('nom') or 'Produit'
-                    prix = ligne.get('Sale price') or ligne.get('prix') or '19.99'
-                    if not prix: prix = '19.99'
-                    image = ligne.get('Product Image Url') or ligne.get('image') or ''
-                    if ',' in image: image = image.split(',')[0].strip()
-                    galerie_raw = ligne.get('Main images url') or ligne.get('galerie') or ''
-                    galerie = [img.strip() for img in galerie_raw.split(',') if img.strip()]
-                    if not galerie: galerie = [image]
-                    desc = ligne.get('Product description html') or ligne.get('description') or ''
-                    
-                    texte_complet = (nom + " " + str(desc)).lower()
-                    if any(k in texte_complet for k in ['pokemon', 'pokémon', 'card', 'carte']): categorie = "pokemon"
-                    elif any(k in texte_complet for k in ['gaming', 'gamer', 'clavier', 'souris', 'manette', 'headset', 'ps5', 'xbox']): categorie = "gaming"
-                    elif any(k in texte_complet for k in ['pc', 'ordinateur', 'laptop', 'ecran', 'cpu']): categorie = "pc"
-                    elif any(k in texte_complet for k in ['hifi', 'audio', 'casque', 'ecouteurs', 'enceinte', 'bluetooth', 'soundbar']): categorie = "hifi"
-                    elif any(k in texte_complet for k in ['telephone', 'smartphone', 'chargeur', 'cable', 'iphone', 'samsung']): categorie = "telephonie"
-                    elif any(k in texte_complet for k in ['chauffage', 'radiateur', 'ventilateur']): categorie = "chauffage"
-                    elif any(k in texte_complet for k in ['sport', 'fitness', 'velo']): categorie = "sport"
-                    elif any(k in texte_complet for k in ['lampe', 'eclairage', 'led', 'auto']): categorie = "eclairage"
-                    else: categorie = "general"
-
-                    nouveaux_produits.append({
-                        "id": c, "nom": nom, "prix": str(prix), "image": image,
-                        "galerie": galerie[:5], "categorie": categorie, "description": str(desc)[:300] + "..."
-                    })
-                    c += 1
-        except Exception as e:
-            print(f"Erreur import: {e}")
-
-        if nouveaux_produits:
+            contenu = fich.read().decode('utf-8-sig', errors='ignore').splitlines()
+            lecteur = csv.DictReader(contenu)
             global PRODUITS
-            PRODUITS = nouveaux_produits
-            # C'est ici que ça enregistre en dur dans le fichier local, ce qui empêche le retour des 268 articles d'origine !
+            max_id = max([p['id'] for p in PRODUITS], default=-1)
+            c = max_id + 1
+            nouveaux_produits = []
+            for ligne in lecteur:
+                nom = ligne.get('Title') or ligne.get('nom') or 'Produit Importé'
+                prix = ligne.get('Sale price') or ligne.get('prix') or '19.99'
+                if not prix: prix = '19.99'
+                image = ligne.get('Product Image Url') or ligne.get('image') or 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500'
+                if ',' in image: image = image.split(',')[0].strip()
+                galerie_raw = ligne.get('Main images url') or ligne.get('galerie') or ''
+                galerie = [img.strip() for img in galerie_raw.split(',') if img.strip()]
+                if not galerie: galerie = [image]
+                desc = ligne.get('Product description html') or ligne.get('description') or 'Aucune description disponible.'
+                
+                texte_complet = (nom + " " + str(desc)).lower()
+                if any(k in texte_complet for k in ['pokemon', 'pokémon', 'card', 'carte']):
+                    categorie = "pokemon"
+                elif any(k in texte_complet for k in ['gaming', 'gamer', 'clavier', 'souris', 'manette', 'headset', 'ps5', 'xbox']):
+                    categorie = "gaming"
+                elif any(k in texte_complet for k in ['pc', 'ordinateur', 'laptop', 'ecran', 'cpu', 'clavier']):
+                    categorie = "pc"
+                elif any(k in texte_complet for k in ['hifi', 'audio', 'casque', 'ecouteurs', 'enceinte', 'bluetooth', 'soundbar', 'mp3']):
+                    categorie = "hifi"
+                elif any(k in texte_complet for k in ['telephone', 'smartphone', 'chargeur', 'cable', 'iphone', 'samsung']):
+                    categorie = "telephonie"
+                elif any(k in texte_complet for k in ['chauffage', 'radiateur', 'ventilateur', 'climatisation']):
+                    categorie = "chauffage"
+                elif any(k in texte_complet for k in ['sport', 'fitness', 'velo', 'musculation']):
+                    categorie = "sport"
+                elif any(k in texte_complet for k in ['lampe', 'eclairage', 'led', 'auto', 'voiture']):
+                    categorie = "eclairage"
+                else:
+                    categorie = "general"
+
+                nouveaux_produits.append({
+                    "id": c, "nom": nom, "prix": str(prix), "image": image,
+                    "galerie": galerie[:5], "categorie": categorie, "description": str(desc)[:300] + "..."
+                })
+                c += 1
+            
+            PRODUITS.extend(nouveaux_produits)
             sauvegarder_produits(PRODUITS)
+        except Exception as e:
+            print(f"Erreur import CSV admin: {e}")
             
     return redirect(url_for('admin_panel'))
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000)
