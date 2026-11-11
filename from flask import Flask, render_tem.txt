@@ -5,6 +5,7 @@ import csv
 import urllib.parse
 import urllib.request
 import ast
+import io
 
 app = Flask(__name__)
 app.secret_key = 'cle_secrete_boutique_v8'
@@ -39,10 +40,30 @@ CATEGORIES = {
 
 LOCAL_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mes_produits_sauves.csv")
 
+def calculer_prix_marge(prix_brut_str):
+    """Applique la marge intelligente par palier sur le prix brut AliExpress"""
+    try:
+        prix_base = float(str(prix_brut_str).replace(',', '.'))
+    except:
+        return "19.99"
+    
+    if prix_base < 15.0:
+        prix_final = prix_base * 2.0  # x2 sur les petits objets
+    elif prix_base <= 100.0:
+        prix_final = prix_base + 15.0  # +15 € sur les produits moyens
+    else:
+        prix_final = prix_base + 30.0  # +30 € max sur les articles chers
+        
+    return f"{prix_final:.2f}"
+
 def parser_ligne_produit(ligne, current_id):
     nom = ligne.get('Title') or ligne.get('nom') or 'Produit AliExpress'
-    prix = ligne.get('Sale price') or ligne.get('prix') or '19.99'
-    if not prix or prix == 'nan': prix = '19.99'
+    prix_brut = ligne.get('Sale price') or ligne.get('prix') or '19.99'
+    if not prix_brut or prix_brut == 'nan': prix_brut = '19.99'
+    
+    # Application de la marge automatique ici
+    prix = calculer_prix_marge(prix_brut)
+
     image = ligne.get('Product Image Url') or ligne.get('image') or 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500'
     if ',' in image: image = image.split(',')[0].strip()
     galerie_raw = ligne.get('Main images url') or ligne.get('galerie') or ''
@@ -100,7 +121,7 @@ def charger_produits():
         except:
             pass
 
-  produits_importes = []
+    produits_importes = []
     chemin_csv = "mes_produits_sauves.csv"
     
     if os.path.exists(chemin_csv):
@@ -364,7 +385,10 @@ HTML_ADMIN = """
 <body>
     <div class="header">
         <a href="/admin" class="brand-logo">🛍️ ADMIN SHOP</a>
-        <a href="/" style="color:white; text-decoration:none; font-weight:bold;">Voir le site ➡️</a>
+        <div style="display: flex; gap: 15px; align-items: center;">
+            <a href="/" style="color:white; text-decoration:none; font-weight:bold;">Voir le site ➡️</a>
+            <a href="/admin/logout" style="color:#fca5a5; text-decoration:none; font-weight:bold;">Déconnexion 🚪</a>
+        </div>
     </div>
     <div class="container">
         <div style="background: white; padding: 25px; border-radius: 12px; margin-bottom: 25px;">
