@@ -5,6 +5,7 @@ import csv
 import urllib.parse
 import urllib.request
 import ast
+import io
 
 app = Flask(__name__)
 app.secret_key = 'cle_secrete_boutique_v8'
@@ -37,69 +38,80 @@ CATEGORIES = {
     "general": "✨ Tendances Générales"
 }
 
-# Fichier et dossier pointant vers le disque persistant /var/data sur Render
-LOCAL_STATE_FILE = "/var/data/mes_produits_sauves.csv"
-DOSSIER_CSV_RENDER = "/var/data/csv.aliexpress"
+LOCAL_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mes_produits_sauves.csv")
 
-def parser_dossier_csv():
-    produits_importes = []
-    dossier_csv = DOSSIER_CSV_RENDER if os.path.exists(DOSSIER_CSV_RENDER) else r"C:\csv.aliexpress"
-    if not os.path.exists(dossier_csv):
-        return []
+def calculer_prix_marge(prix_brut_str):
+    """Applique la marge intelligente par palier sur le prix brut"""
+    try:
+        nettoye = ''.join(c for c in str(prix_brut_str) if c.isdigit() or c in ['.', ','])
+        prix_base = float(nettoye.replace(',', '.'))
+    except:
+        return "19.99"
+    
+    if prix_base < 15.0:
+        prix_final = prix_base * 2.0  # x2 sur les petits objets (< 15€)
+    elif prix_base <= 100.0:
+        prix_final = prix_base + 15.0  # +15 € sur les produits moyens (15€ - 100€)
+    else:
+        prix_final = prix_base + 30.0  # +30 € max sur les articles chers (> 100€)
+        
+    return f"{prix_final:.2f}"
 
-    c = 0
-    for fichier in os.listdir(dossier_csv):
-        if fichier.endswith(".csv"):
-            chemin_complet = os.path.join(dossier_csv, fichier)
-            try:
-                with open(chemin_complet, mode='r', encoding='utf-8-sig', errors='ignore') as f:
-                    lecteur = csv.DictReader(f)
-                    for ligne in lecteur:
-                        nom = ligne.get('Title') or ligne.get('nom') or 'Produit AliExpress'
-                        prix = ligne.get('Sale price') or ligne.get('prix') or '19.99'
-                        if not prix: prix = '19.99'
-                        image = ligne.get('Product Image Url') or ligne.get('image') or 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500'
-                        if ',' in image: image = image.split(',')[0].strip()
-                        galerie_raw = ligne.get('Main images url') or ligne.get('galerie') or ''
-                        galerie = [img.strip() for img in galerie_raw.split(',') if img.strip()]
-                        if not galerie: galerie = [image]
-                        desc = ligne.get('Product description html') or ligne.get('description') or 'Aucune description disponible.'
-                        
-                        nom_lower = nom.lower()
-                        desc_lower = str(desc).lower()
-                        texte_complet = nom_lower + " " + desc_lower
-                        
-                        if any(k in texte_complet for k in ['pokemon', 'pokémon', 'card', 'carte']):
-                            categorie = "pokemon"
-                        elif any(k in texte_complet for k in ['gaming', 'gamer', 'clavier', 'souris', 'manette', 'headset', 'ps5', 'xbox']):
-                            categorie = "gaming"
-                        elif any(k in texte_complet for k in ['pc', 'ordinateur', 'laptop', 'ecran', 'cpu', 'clavier']):
-                            categorie = "pc"
-                        elif any(k in texte_complet for k in ['hifi', 'audio', 'casque', 'ecouteurs', 'enceinte', 'bluetooth', 'soundbar', 'mp3']):
-                            categorie = "hifi"
-                        elif any(k in texte_complet for k in ['telephone', 'smartphone', 'chargeur', 'cable', 'iphone', 'samsung']):
-                            categorie = "telephonie"
-                        elif any(k in texte_complet for k in ['chauffage', 'radiateur', 'ventilateur', 'climatisation']):
-                            categorie = "chauffage"
-                        elif any(k in texte_complet for k in ['sport', 'fitness', 'velo', 'musculation']):
-                            categorie = "sport"
-                        elif any(k in texte_complet for k in ['lampe', 'eclairage', 'led', 'auto', 'voiture']):
-                            categorie = "eclairage"
-                        else:
-                            categorie = "general"
+def parser_ligne_produit(ligne, current_id):
+    nom = ligne.get('Title') or ligne.get('nom') or 'Produit AliExpress'
+    
+    prix_brut = (
+        ligne.get('Sale price') or 
+        ligne.get('Sale price formatted') or 
+        ligne.get('price') or 
+        ligne.get('Price') or 
+        ligne.get('prix') or 
+        ligne.get('Product Price') or 
+        '19.99'
+    )
+    if not prix_brut or prix_brut == 'nan': 
+        prix_brut = '19.99'
+    
+    prix = calculer_prix_marge(prix_brut)
 
-                        produits_importes.append({
-                            "id": c, "nom": nom, "prix": str(prix), "image": image,
-                            "galerie": galerie[:5], "categorie": categorie, "description": str(desc)[:300] + "..."
-                        })
-                        c += 1
-            except Exception as e:
-                print(f"Erreur lecture {fichier}: {e}")
-    return produits_importes
+    image = ligne.get('Product Image Url') or ligne.get('image') or 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500'
+    if ',' in image: image = image.split(',')[0].strip()
+    galerie_raw = ligne.get('Main images url') or ligne.get('galerie') or ''
+    galerie = [img.strip() for img in galerie_raw.split(',') if img.strip()]
+    if not galerie or galerie == ['nan']: galerie = [image]
+    desc = ligne.get('Product description html') or ligne.get('description') or 'Aucune description disponible.'
+    
+    nom_lower = nom.lower()
+    desc_lower = str(desc).lower()
+    texte_complet = nom_lower + " " + desc_lower
+    
+    if any(k in texte_complet for k in ['pokemon', 'pokémon', 'card', 'carte']):
+        categorie = "pokemon"
+    elif any(k in texte_complet for k in ['gaming', 'gamer', 'clavier', 'souris', 'manette', 'headset', 'ps5', 'xbox']):
+        categorie = "gaming"
+    elif any(k in texte_complet for k in ['pc', 'ordinateur', 'laptop', 'ecran', 'cpu', 'clavier']):
+        categorie = "pc"
+    elif any(k in texte_complet for k in ['hifi', 'audio', 'casque', 'ecouteurs', 'enceinte', 'bluetooth', 'soundbar', 'mp3']):
+        categorie = "hifi"
+    elif any(k in texte_complet for k in ['telephone', 'smartphone', 'chargeur', 'cable', 'iphone', 'samsung']):
+        categorie = "telephonie"
+    elif any(k in texte_complet for k in ['chauffage', 'radiateur', 'ventilateur', 'climatisation']):
+        categorie = "chauffage"
+    elif any(k in texte_complet for k in ['sport', 'fitness', 'velo', 'musculation']):
+        categorie = "sport"
+    elif any(k in texte_complet for k in ['lampe', 'eclairage', 'led', 'auto', 'voiture']):
+        categorie = "eclairage"
+    else:
+        categorie = "general"
+
+    return {
+        "id": current_id, "nom": nom, "prix": str(prix), "image": image,
+        "galerie": galerie[:5], "categorie": categorie, "description": str(desc)[:300] + "..." if len(str(desc)) > 300 else str(desc)
+    }
 
 def charger_produits():
+    produits = []
     if os.path.exists(LOCAL_STATE_FILE):
-        produits = []
         try:
             with open(LOCAL_STATE_FILE, mode='r', encoding='utf-8') as f:
                 reader = csv.DictReader(f)
@@ -113,17 +125,28 @@ def charger_produits():
                             row['galerie'] = [row.get('image', '')]
                     else:
                         row['galerie'] = [img.strip() for img in galerie_raw.split(',') if img.strip()]
+                    
+                    prix_actuel = row.get('prix', '19.99')
+                    row['prix'] = calculer_prix_marge(prix_actuel)
+                    
                     produits.append(row)
             if produits:
                 return produits
-        except:
-            pass
+        except Exception as e:
+            print(f"Erreur chargement etat local: {e}")
 
-    produits_importes = parser_dossier_csv()
-    if produits_importes:
-        sauvegarder_produits(produits_importes)
-        return produits_importes
-    return []
+    produits_importes = []
+    chemin_csv = "mes_produits_sauves.csv"
+    if os.path.exists(chemin_csv) and chemin_csv != LOCAL_STATE_FILE:
+        try:
+            with open(chemin_csv, mode='r', encoding='utf-8') as f:
+                lecteur = csv.DictReader(f)
+                for idx, ligne in enumerate(lecteur):
+                    produits_importes.append(parser_ligne_produit(ligne, idx))
+        except Exception as e:
+            print(f"Erreur lecture {chemin_csv}: {e}")
+            
+    return produits_importes
 
 def sauvegarder_produits(produits):
     os.makedirs(os.path.dirname(LOCAL_STATE_FILE), exist_ok=True)
@@ -172,6 +195,9 @@ CSS_STYLED = """
     .pagination a, .pagination span { padding: 8px 14px; border-radius: 6px; font-weight: bold; text-decoration: none; font-size: 14px; border: 1px solid #cbd5e1; }
     .pagination a { background: white; color: #4c1d95; }
     .pagination .current { background: #6d28d9; color: white; border-color: #6d28d9; }
+    
+    /* Correction pour brider les images géantes d'AliExpress dans la description */
+    .product-desc img { max-width: 100% !important; height: auto !important; display: block; margin: 10px auto; border-radius: 6px; }
 </style>
 """
 
@@ -252,7 +278,7 @@ HTML_PRODUCT = """
     <div class="container">
         <div style="background: white; border-radius: 12px; padding: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 20px;">
             <div>
-                <img src="{{ p.image }}" id="mainImg" style="width: 100%; height: 380px; object-fit: cover; border-radius: 8px;">
+                <img src="{{ p.image }}" id="mainImg" style="width: 100%; max-height: 380px; object-fit: contain; border-radius: 8px; background: #f8fafc;">
                 <div style="display: flex; gap: 10px; margin-top: 15px; overflow-x: auto;">
                     {% for img in p.galerie %}
                     <img src="{{ img }}" style="width: 70px; height: 70px; object-fit: cover; border-radius: 6px; cursor: pointer;" onclick="document.getElementById('mainImg').src = this.src">
@@ -262,7 +288,7 @@ HTML_PRODUCT = """
             <div>
                 <h1 style="font-size: 22px; font-weight: 800; margin-bottom: 12px;">{{ p.nom }}</h1>
                 <div style="font-size: 28px; font-weight: 900; color: #2563eb; margin-bottom: 20px;">{{ p.prix }} €</div>
-                <div style="color: #4b5563; font-size: 13px; line-height: 1.6; margin-bottom: 25px;">{{ p.description | safe }}</div>
+                <div class="product-desc" style="color: #4b5563; font-size: 13px; line-height: 1.6; margin-bottom: 25px;">{{ p.description | safe }}</div>
                 <form action="/add/{{ p.id }}?lang={{ lang }}" method="POST"><button type="submit" class="btn-buy" style="padding: 14px; font-size: 16px;">{{ t.buy }}</button></form>
             </div>
         </div>
@@ -382,10 +408,10 @@ HTML_ADMIN = """
     </div>
     <div class="container">
         <div style="background: white; padding: 25px; border-radius: 12px; margin-bottom: 25px;">
-            <h3 style="color: #2e1065; margin-bottom: 10px;">📂 Importer un fichier CSV</h3>
+            <h3 style="color: #2e1065; margin-bottom: 10px;">📂 Importer un fichier CSV (Mode Ajout)</h3>
             <form action="/admin/import_csv" method="POST" enctype="multipart/form-data" style="display: flex; gap: 15px; align-items: center;">
                 <input type="file" name="fichier_csv" accept=".csv" required style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;">
-                <button type="submit" style="background: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold;">📥 Importer</button>
+                <button type="submit" style="background: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold;">📥 Importer et Ajouter</button>
             </form>
         </div>
         <div style="background: white; padding: 25px; border-radius: 12px;">
@@ -538,14 +564,24 @@ def admin_delete(p_id):
 @app.route('/admin/import_csv', methods=['POST'])
 def admin_import_csv():
     if not session.get('is_admin'): return redirect(url_for('admin_login'))
-    fich = request.files.get('fichier_csv')
-    if fich:
-        os.makedirs(DOSSIER_CSV_RENDER, exist_ok=True)
-        fich.save(os.path.join(DOSSIER_CSV_RENDER, fich.filename))
-        global PRODUITS
-        PRODUITS = parser_dossier_csv()
-        sauvegarder_produits(PRODUITS)
+    global PRODUITS
+    f_uploaded = request.files.get('fichier_csv')
+    if f_uploaded:
+        try:
+            content = f_uploaded.read().decode('utf-8-sig', errors='ignore')
+            import io
+            f_io = io.StringIO(content)
+            lecteur = csv.DictReader(f_io)
+            max_id = max([p['id'] for p in PRODUITS], default=-1) + 1
+            for ligne in lecteur:
+                nouveau_p = parser_ligne_produit(ligne, max_id)
+                PRODUITS.append(nouveau_p)
+                max_id += 1
+            sauvegarder_produits(PRODUITS)
+        except Exception as e:
+            print(f"Erreur import CSV admin: {e}")
     return redirect(url_for('admin_panel'))
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
