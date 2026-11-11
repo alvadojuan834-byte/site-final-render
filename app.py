@@ -1,33 +1,28 @@
 ﻿from flask import Flask, render_template_string, request, redirect, url_for, session
+from datetime import datetime
+import os
+import csv
 import urllib.parse
 import urllib.request
+import ast
 
 app = Flask(__name__)
-app.secret_key = 'cle_secrete_boutique_v11'
+app.secret_key = 'cle_secrete_boutique_v8'
 
 PAYPAL_API_USER = "alvadojuan834_api1.gmail.com"
 PAYPAL_API_PWD = "6VUUOI36XVVXLICO"
 PAYPAL_API_SIGNATURE = "AaRSU2y8OAIEIxg92K4Zpd.Ucl0BAZSsK.CC9mosIjzFIvsppRWx-4Y"
 PAYPAL_URL = "https://api-3t.paypal.com/nvp"
+
 ADMIN_PASSWORD = "monpassadmin123"
 
-# INTEGRATION EN DUR DE TES VRAIS PRODUITS OFFICIELS
-PRODUITS = [
-    {"id": 1, "nom": "ATTACK SHARK X85 clavier de jeu mécanique sans fil, TKL 82 touches, Structure de joint, bouton, clavier personnalisé rvb échangeable à chaud", "prix": "59.39", "image": "https://ae-pic-a1.aliexpress-media.com/kf/Sdbc1f777b46244e197f4cb39fb04f9e1c.jpg", "galerie": ["https://ae-pic-a1.aliexpress-media.com/kf/Sdbc1f777b46244e197f4cb39fb04f9e1c.jpg"], "categorie": "pc", "description": "ATTACK SHARK X85 clavier de jeu mécanique sans fil, TKL 82 touches, Structure de joint, bouton, clavier personnalisé rvb échangeable à chaud", "couleurs": ["Standard"], "tailles": ["Standard"]},
-    {"id": 2, "nom": "Console de macros programmable AJAZZ AKP153 avec panneau de contrôle LCD visuel pour le jeu, le travail de bureau, le streaming et le montage vidéo", "prix": "74.39", "image": "https://ae-pic-a1.aliexpress-media.com/kf/S26c44fc58b75456cb028767272565a6av.jpg", "galerie": ["https://ae-pic-a1.aliexpress-media.com/kf/S26c44fc58b75456cb028767272565a6av.jpg"], "categorie": "pc", "description": "Console de macros programmable AJAZZ AKP153 avec panneau de contrôle LCD visuel pour le jeu, le travail de bureau, le streaming et le montage vidéo", "couleurs": ["Standard"], "tailles": ["Standard"]},
-    {"id": 3, "nom": "Tapis de bureau en cuir PU imperméable, grand tapis de souris pour jeux, tapis de clavier pour ordinateur de bureau, accessoires pour PC, protection de bureau", "prix": "7.49", "image": "https://ae-pic-a1.aliexpress-media.com/kf/Secf13283045a4aedaf6bb395b0f37659E.jpg", "galerie": ["https://ae-pic-a1.aliexpress-media.com/kf/Secf13283045a4aedaf6bb395b0f37659E.jpg"], "categorie": "pc", "description": "Tapis de bureau en cuir PU imperméable, grand tapis de souris pour jeux, tapis de clavier pour ordinateur de bureau, accessoires pour PC, protection de bureau", "couleurs": ["Standard"], "tailles": ["Standard"]},
-    {"id": 4, "nom": "Aigo AR12 PRO 3 pack 5 pack 120mm boîtier d'ordinateur ventilateur RVB 5V 3PIN AURA SYNC réglable refroidisseur d'ordinateur silencieux ventilateur de refroidissement PWM", "prix": "18.35", "image": "https://ae-pic-a1.aliexpress-media.com/kf/S8a13cb2d72a94467bd0f972b21c4b4a1A.jpg", "galerie": ["https://ae-pic-a1.aliexpress-media.com/kf/S8a13cb2d72a94467bd0f972b21c4b4a1A.jpg"], "categorie": "pc", "description": "Aigo AR12 PRO 3 pack 5 pack 120mm boîtier d'ordinateur ventilateur RVB 5V 3PIN AURA SYNC réglable refroidisseur d'ordinateur silencieux ventilateur de refroidissement PWM", "couleurs": ["Standard"], "tailles": ["Standard"]},
-    {"id": 5, "nom": "Clavier mécanique sans fil AJAZZ AK820 Pro, écran TFT, Gasket Mount, Bluetooth/2.4G/USB, interrupteur à échange chaud, RVB", "prix": "42.75", "image": "https://ae-pic-a1.aliexpress-media.com/kf/S3bfaae2cf90c42749db718b958c29b7aA.jpg", "galerie": ["https://ae-pic-a1.aliexpress-media.com/kf/S3bfaae2cf90c42749db718b958c29b7aA.jpg"], "categorie": "pc", "description": "Clavier mécanique sans fil AJAZZ AK820 Pro, écran TFT, Gasket Mount, Bluetooth/2.4G/USB, interrupteur à échange chaud, RVB", "couleurs": ["Standard"], "tailles": ["Standard"]},
-    {"id": 6, "nom": "HUANANZHI – ensemble de cartes mères X99 BD4 avec Intel Xeon E5 2696 V3 CPU 32Go = 2x16Go DDR4 RECC RAM NVME M.2 LGA2011-3", "prix": "129.50", "image": "https://ae-pic-a1.aliexpress-media.com/kf/S3bfaae2cf90c42749db718b958c29b7aA.jpg", "galerie": ["https://ae-pic-a1.aliexpress-media.com/kf/S3bfaae2cf90c42749db718b958c29b7aA.jpg"], "categorie": "pc", "description": "HUANANZHI – ensemble de cartes mères X99 BD4 avec Intel Xeon E5 2696 V3 CPU 32Go = 2x16Go DDR4 RECC RAM NVME M.2 LGA2011-3", "couleurs": ["Standard"], "tailles": ["Standard"]}
-]
-
 TRADUCTIONS = {
-    "fr": {"shop": "Mon Shop Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Panier", "all": "Toutes les catégories", "buy": "Acheter", "total": "Total", "checkout": "🔒 Valider la commande", "empty": "Votre panier est vide.", "color": "Couleur", "size": "Taille", "desc": "Description & Caractéristiques", "search_placeholder": "Rechercher un produit..."},
-    "be": {"shop": "Mon Shop Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Panier", "all": "Toutes les catégories", "buy": "Acheter", "total": "Total", "checkout": "🔒 Valider la commande", "empty": "Votre panier est vide wesh.", "color": "Couleur", "size": "Taille", "desc": "Description & Caractéristiques", "search_placeholder": "Rechercher un produit..."},
-    "en": {"shop": "Mon Shop Direct", "promo": "🔥 AliExpress Boost Promos 🔥", "cart": "Cart", "all": "All categories", "buy": "Buy Now", "total": "Total", "checkout": "🔒 Checkout", "empty": "Your cart is empty.", "color": "Color", "size": "Size", "desc": "Description & Features", "search_placeholder": "Search a product..."},
-    "de": {"shop": "Mon Shop Direct", "promo": "🔥 AliExpress Boost Angebote 🔥", "cart": "Warenkorb", "all": "Alle Kategorien", "buy": "Kaufen", "total": "Gesamt", "checkout": "🔒 Zur Kasse", "empty": "Ihr Warenkorb ist leer.", "color": "Farbe", "size": "Größe", "desc": "Beschreibung & Merkmale", "search_placeholder": "Produkt suchen..."},
-    "es": {"shop": "Mon Shop Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Carrito", "all": "Todas las categorías", "buy": "Comprar", "total": "Total", "checkout": "🔒 Tramitar pedido", "empty": "Tu carrito está vacío.", "color": "Color", "talla": "Talla", "desc": "Descripción y características", "search_placeholder": "Buscar un producto..."},
-    "nl": {"shop": "Mon Shop Direct", "promo": "🔥 AliExpress Boost Promo's 🔥", "cart": "Winkelmand", "all": "Alle categorieën", "buy": "Kopen", "total": "Totaal", "checkout": "🔒 Afrekenen", "empty": "Je winkelmand is leeg.", "color": "Kleur", "size": "Maat", "desc": "Beschrijving & Kenmerken", "search_placeholder": "Zoek een product..."}
+    "fr": {"shop": "Mon Shop Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Panier", "all": "Toutes les catégories", "buy": "Acheter", "total": "Total", "checkout": "🔒 Valider la commande", "empty": "Votre panier est vide.", "color": "Couleur", "size": "Taille", "desc": "Description du produit", "search_placeholder": "Rechercher un produit..."},
+    "be": {"shop": "Mon Shop Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Panier", "all": "Toutes les catégories", "buy": "Acheter", "total": "Total", "checkout": "🔒 Valider la commande", "empty": "Votre panier est vide wesh.", "color": "Couleur", "size": "Taille", "desc": "Description du produit", "search_placeholder": "Rechercher un produit..."},
+    "en": {"shop": "Mon Shop Direct", "promo": "🔥 AliExpress Boost Promos 🔥", "cart": "Cart", "all": "All categories", "buy": "Buy Now", "total": "Total", "checkout": "🔒 Checkout", "empty": "Your cart is empty.", "color": "Color", "size": "Size", "desc": "Product description", "search_placeholder": "Search a product..."},
+    "de": {"shop": "Mon Shop Direct", "promo": "🔥 AliExpress Boost Angebote 🔥", "cart": "Warenkorb", "all": "Alle Kategorien", "buy": "Kaufen", "total": "Gesamt", "checkout": "🔒 Zur Kasse", "empty": "Ihr Warenkorb ist leer.", "color": "Farbe", "size": "Größe", "desc": "Produktbeschreibung", "search_placeholder": "Produkt suchen..."},
+    "es": {"shop": "Mon Shop Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Carrito", "all": "Todas las categorías", "buy": "Comprar", "total": "Total", "checkout": "🔒 Tramitar pedido", "empty": "Tu carrito está vacío.", "color": "Color", "talla": "Talla", "desc": "Descripción del producto", "search_placeholder": "Buscar un producto..."},
+    "nl": {"shop": "Mon Shop Direct", "promo": "🔥 AliExpress Boost Promo's 🔥", "cart": "Winkelmand", "all": "Alle categorieën", "buy": "Kopen", "total": "Totaal", "checkout": "🔒 Afrekenen", "empty": "Je winkelmand is leeg.", "color": "Kleur", "size": "Maat", "desc": "Produktbeschrijving", "search_placeholder": "Zoek een product..."}
 }
 
 CATEGORIES = {
@@ -41,6 +36,79 @@ CATEGORIES = {
     "eclairage": "💡 Éclairage & Auto",
     "general": "✨ Tendances Générales"
 }
+
+LOCAL_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mes_produits_sauves.csv")
+
+def classifier_produit(nom, desc):
+    texte_complet = (str(nom) + " " + str(desc)).lower()
+    if any(k in texte_complet for k in ['pokemon', 'pokémon', 'card', 'cards', 'carte', 'cartes', 'tcg']):
+        return "pokemon"
+    elif any(k in texte_complet for k in ['gaming', 'gamer', 'keyboard', 'clavier', 'mouse', 'souris', 'controller', 'manette', 'headset', 'ps5', 'xbox', 'nintendo']):
+        return "gaming"
+    elif any(k in texte_complet for k in ['pc', 'computer', 'ordinateur', 'laptop', 'screen', 'ecran', 'cpu', 'gpu', 'monitor']):
+        return "pc"
+    elif any(k in texte_complet for k in ['hifi', 'audio', 'headphone', 'casque', 'earphone', 'ecouteurs', 'speaker', 'enceinte', 'bluetooth', 'soundbar', 'mp3', 'mic']):
+        return "hifi"
+    elif any(k in texte_complet for k in ['phone', 'smartphone', 'telephone', 'charger', 'chargeur', 'cable', 'iphone', 'samsung', 'case', 'coque']):
+        return "telephonie"
+    elif any(k in texte_complet for k in ['heater', 'chauffage', 'radiateur', 'fan', 'ventilateur', 'air conditioning', 'climatisation', 'warm']):
+        return "chauffage"
+    elif any(k in texte_complet for k in ['sport', 'fitness', 'bike', 'velo', 'gym', 'musculation', 'running']):
+        return "sport"
+    elif any(k in texte_complet for k in ['lamp', 'lampe', 'light', 'eclairage', 'led', 'auto', 'car', 'voiture', 'bulb']):
+        return "eclairage"
+    else:
+        return "general"
+
+def charger_produits():
+    if os.path.exists(LOCAL_STATE_FILE):
+        produits = []
+        try:
+            with open(LOCAL_STATE_FILE, mode='r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    row['id'] = int(row['id'])
+                    galerie_raw = row.get('galerie', '')
+                    if galerie_raw.startswith('['):
+                        try:
+                            row['galerie'] = ast.literal_eval(galerie_raw)
+                        except:
+                            row['galerie'] = [row.get('image', '')]
+                    else:
+                        row['galerie'] = [img.strip() for img in galerie_raw.split(',') if img.strip()]
+                    
+                    # Charger les variantes couleurs/tailles si enregistrées
+                    for champ in ['couleurs', 'tailles']:
+                        raw_val = row.get(champ, '')
+                        if raw_val.startswith('['):
+                            try:
+                                row[champ] = ast.literal_eval(raw_val)
+                            except:
+                                row[champ] = []
+                        else:
+                            row[champ] = [v.strip() for v in raw_val.split(',') if v.strip()]
+                    produits.append(row)
+            if produits:
+                return produits
+        except:
+            pass
+    return []
+
+def sauvegarder_produits(produits):
+    os.makedirs(os.path.dirname(LOCAL_STATE_FILE), exist_ok=True)
+    with open(LOCAL_STATE_FILE, mode='w', newline='', encoding='utf-8') as f:
+        fieldnames = ['id', 'nom', 'prix', 'image', 'galerie', 'categorie', 'description', 'couleurs', 'tailles']
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for p in produits:
+            p_copy = p.copy()
+            p_copy['galerie'] = str(p_copy['galerie'])
+            p_copy['couleurs'] = str(p_copy.get('couleurs', []))
+            p_copy['tailles'] = str(p_copy.get('tailles', []))
+            writer.writerow(p_copy)
+
+PRODUITS = charger_produits()
+COMMANDES = []
 
 CSS_STYLED = """
 <style>
@@ -154,9 +222,9 @@ HTML_PRODUCT = """
         <a href="/?lang={{ lang }}" style="color:white; text-decoration:none; font-weight:bold;">⬅️ Retour</a>
     </div>
     <div class="container">
-        <div style="background: white; border-radius: 12px; padding: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+        <div style="background: white; border-radius: 12px; padding: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 20px;">
             <div>
-                <img src="{{ p.image }}" id="mainImg" style="width: 100%; height: 380px; object-fit: cover; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <img src="{{ p.image }}" id="mainImg" style="width: 100%; height: 380px; object-fit: cover; border-radius: 8px;">
                 <div style="display: flex; gap: 10px; margin-top: 15px; overflow-x: auto;">
                     {% for img in p.galerie %}
                     <img src="{{ img }}" style="width: 70px; height: 70px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 2px solid #cbd5e1;" onclick="document.getElementById('mainImg').src = this.src">
@@ -164,13 +232,13 @@ HTML_PRODUCT = """
                 </div>
             </div>
             <div>
-                <h1 style="font-size: 22px; font-weight: 800; margin-bottom: 12px; color: #1e1b4b;">{{ p.nom }}</h1>
+                <h1 style="font-size: 22px; font-weight: 800; margin-bottom: 12px;">{{ p.nom }}</h1>
                 <div style="font-size: 28px; font-weight: 900; color: #2563eb; margin-bottom: 20px;">{{ p.prix }} €</div>
                 
                 <form action="/add/{{ p.id }}?lang={{ lang }}" method="POST">
                     {% if p.couleurs %}
                     <div style="margin-bottom: 15px;">
-                        <label style="display:block; font-weight:bold; font-size:13px; margin-bottom:5px; color:#475569;">🎨 {{ t.color }} :</label>
+                        <label style="display:block; font-weight:bold; font-size:13px; margin-bottom:5px;">🎨 {{ t.color }} :</label>
                         <select name="couleur" class="variant-select">
                             {% for col in p.couleurs %}
                             <option value="{{ col }}">{{ col }}</option>
@@ -181,7 +249,7 @@ HTML_PRODUCT = """
 
                     {% if p.tailles %}
                     <div style="margin-bottom: 15px;">
-                        <label style="display:block; font-weight:bold; font-size:13px; margin-bottom:5px; color:#475569;">📏 {{ t.size }} :</label>
+                        <label style="display:block; font-weight:bold; font-size:13px; margin-bottom:5px;">📏 {{ t.size }} :</label>
                         <select name="taille" class="variant-select">
                             {% for sz in p.tailles %}
                             <option value="{{ sz }}">{{ sz }}</option>
@@ -193,15 +261,8 @@ HTML_PRODUCT = """
                     <button type="submit" class="btn-buy" style="padding: 14px; font-size: 16px; margin-top: 10px;">{{ t.buy }}</button>
                 </form>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 25px 0; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 12px; font-weight: 700; color: #334155;">
-                    <div>🚚 Livraison Rapide & Suivie</div>
-                    <div>🔒 Paiement 100% Sécurisé</div>
-                    <div>🛡️ Garantie Satisfait ou Remboursé</div>
-                    <div>💬 Support Client 7j/7</div>
-                </div>
-
                 <div style="margin-top: 25px; border-top: 1px solid #e2e8f0; padding-top: 15px;">
-                    <h3 style="font-size: 15px; font-weight: 800; color: #2e1065; margin-bottom: 10px;">📋 {{ t.desc }}</h3>
+                    <h3 style="font-size: 14px; font-weight: 800; color: #2e1065; margin-bottom: 8px;">{{ t.desc }}</h3>
                     <div style="color: #4b5563; font-size: 13px; line-height: 1.6;">{{ p.description | safe }}</div>
                 </div>
             </div>
@@ -326,18 +387,26 @@ HTML_ADMIN = """
         <a href="/" style="color:white; text-decoration:none; font-weight:bold;">Voir le site ➡️</a>
     </div>
     <div class="container">
+        <div style="background: white; padding: 25px; border-radius: 12px; margin-bottom: 25px;">
+            <h3 style="color: #2e1065; margin-bottom: 10px;">📂 Importer un fichier CSV (Cumulatif)</h3>
+            <form action="/admin/import_csv" method="POST" enctype="multipart/form-data" style="display: flex; gap: 15px; align-items: center;">
+                <input type="file" name="fichier_csv" accept=".csv" required style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                <button type="submit" style="background: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold;">📥 Ajouter au catalogue</button>
+            </form>
+        </div>
         <div style="background: white; padding: 25px; border-radius: 12px;">
-            <h3 style="color: #2e1065; margin-bottom: 15px;">⚙️ Gestion des vrais produits ({{ produits|length }} articles)</h3>
+            <h3 style="color: #2e1065; margin-bottom: 15px;">⚙️ Gestion des produits ({{ produits|length }} articles)</h3>
             <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
                 <tr style="border-bottom: 2px solid #e2e8f0; text-align: left;">
-                    <th style="padding: 10px;">ID</th><th style="padding: 10px;">Nom</th><th style="padding: 10px;">Prix</th><th style="padding: 10px;">Catégorie</th>
+                    <th style="padding: 10px;">ID</th><th style="padding: 10px;">Nom</th><th style="padding: 10px;">Prix</th><th style="padding: 10px;">Catégorie</th><th style="padding: 10px;">Action</th>
                 </tr>
                 {% for p in produits %}
                 <tr style="border-bottom: 1px solid #f1f5f9;">
                     <td style="padding: 10px;">{{ p.id }}</td>
-                    <td style="padding: 10px; font-weight: bold; max-width: 350px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ p.nom }}</td>
+                    <td style="padding: 10px; font-weight: bold; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ p.nom }}</td>
                     <td style="padding: 10px; color: #2563eb; font-weight: bold;">{{ p.prix }} €</td>
                     <td style="padding: 10px; color: #6d28d9; font-weight: bold;">{{ categories.get(p.categorie, p.categorie) }}</td>
+                    <td style="padding: 10px;"><a href="/admin/delete/{{ p.id }}" style="color: #ef4444; font-weight: bold; text-decoration: none;">Supprimer</a></td>
                 </tr>
                 {% endfor %}
             </table>
@@ -387,6 +456,7 @@ def add(p_id):
     if 'cart' not in session: session['cart'] = []
     p = next((item for item in PRODUITS if item["id"] == p_id), None)
     if p:
+        # Copier le produit pour y attacher les variantes choisies
         item_cart = p.copy()
         item_cart['selected_couleur'] = request.form.get('couleur', '')
         item_cart['selected_taille'] = request.form.get('taille', '')
@@ -398,7 +468,7 @@ def add(p_id):
 def cart():
     lang = request.args.get('lang', 'fr')
     items = session.get('cart', [])
-    total = sum(float(item['prix']) for item in items if str(item['prix']).replace('.','',1).isdigit())
+    total = sum(float(item['prix']) for item in items if item['prix'].replace('.','',1).isdigit())
     return render_template_string(HTML_CART, cart=items, total=total, lang=lang, t=TRADUCTIONS.get(lang, TRADUCTIONS['fr']))
 
 @app.route('/remove/<int:index>')
@@ -417,14 +487,14 @@ def clear():
 @app.route('/checkout')
 def checkout():
     if not session.get('cart', []): return redirect(url_for('home'))
-    total = sum(float(item['prix']) for item in session['cart'] if str(item['prix']).replace('.','',1).isdigit())
+    total = sum(float(item['prix']) for item in session['cart'] if item['prix'].replace('.','',1).isdigit())
     return render_template_string(HTML_CHECKOUT, total=total)
 
 @app.route('/process_order', methods=['POST'])
 def process_order():
     items = session.get('cart', [])
     if not items: return redirect(url_for('home'))
-    total = sum(float(item['prix']) for item in items if str(item['prix']).replace('.','',1).isdigit())
+    total = sum(float(item['prix']) for item in items if item['prix'].replace('.','',1).isdigit())
     
     data = urllib.parse.urlencode({
         'USER': PAYPAL_API_USER, 'PWD': PAYPAL_API_PWD, 'SIGNATURE': PAYPAL_API_SIGNATURE,
@@ -468,6 +538,67 @@ def admin_login():
 def admin_logout():
     session.pop('is_admin', None)
     return redirect(url_for('admin_login'))
+
+@app.route('/admin/delete/<int:p_id>')
+def admin_delete(p_id):
+    if not session.get('is_admin'): return redirect(url_for('admin_login'))
+    global PRODUITS
+    PRODUITS = [p for p in PRODUITS if p['id'] != p_id]
+    sauvegarder_produits(PRODUITS)
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/import_csv', methods=['POST'])
+def admin_import_csv():
+    if not session.get('is_admin'): return redirect(url_for('admin_login'))
+    fichier = request.files.get('fichier_csv')
+    if fichier:
+        dossier_temp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "temp_csv")
+        os.makedirs(dossier_temp, exist_ok=True)
+        chemin_fichier = os.path.join(dossier_temp, fichier.filename)
+        fichier.save(chemin_fichier)
+        
+        global PRODUITS
+        prochain_id = max([p['id'] for p in PRODUITS], default=-1) + 1
+        
+        nouveaux_ajouts = []
+        try:
+            with open(chemin_fichier, mode='r', encoding='utf-8-sig', errors='ignore') as f:
+                lecteur = csv.DictReader(f)
+                for ligne in lecteur:
+                    nom = ligne.get('Title') or ligne.get('nom') or 'Produit'
+                    prix = ligne.get('Sale price') or ligne.get('prix') or '19.99'
+                    if not prix: prix = '19.99'
+                    image = ligne.get('Product Image Url') or ligne.get('image') or ''
+                    if ',' in image: image = image.split(',')[0].strip()
+                    
+                    galerie_raw = ligne.get('Main images url') or ligne.get('galerie') or ''
+                    galerie = [img.strip() for img in galerie_raw.split(',') if img.strip()]
+                    if not galerie: galerie = [image]
+                    
+                    desc = ligne.get('Product description html') or ligne.get('description') or ''
+                    categorie = classifier_produit(nom, desc)
+                    
+                    # Récupération des variantes (couleurs / tailles depuis le CSV AliExpress)
+                    couleurs_raw = ligne.get('Color') or ligne.get('couleurs') or ''
+                    couleurs = [c.strip() for c in couleurs_raw.split(',') if c.strip()]
+                    
+                    tailles_raw = ligne.get('Size') or ligne.get('tailles') or ''
+                    tailles = [s.strip() for s in tailles_raw.split(',') if s.strip()]
+
+                    nouveaux_ajouts.append({
+                        "id": prochain_id, "nom": nom, "prix": str(prix), "image": image,
+                        "galerie": galerie[:5], "categorie": categorie, "description": str(desc)[:500],
+                        "couleurs": couleurs, "tailles": tailles
+                    })
+                    prochain_id += 1
+        except Exception as e:
+            print(f"Erreur import: {e}")
+
+        if nouveaux_ajouts:
+            PRODUITS.extend(nouveaux_ajouts)
+            sauvegarder_produits(PRODUITS)
+            
+    return redirect(url_for('admin_panel'))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
