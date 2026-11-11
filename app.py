@@ -375,7 +375,10 @@ HTML_ADMIN = """
 <body>
     <div class="header">
         <a href="/admin" class="brand-logo">🛍️ ADMIN SHOP</a>
-        <a href="/" style="color:white; text-decoration:none; font-weight:bold;">Voir le site ➡️</a>
+        <div style="display: flex; gap: 15px; align-items: center;">
+            <a href="/" style="color:white; text-decoration:none; font-weight:bold;">Voir le site ➡️</a>
+            <a href="/admin/logout" style="color:#fca5a5; text-decoration:none; font-weight:bold;">Déconnexion 🚪</a>
+        </div>
     </div>
     <div class="container">
         <div style="background: white; padding: 25px; border-radius: 12px; margin-bottom: 25px;">
