@@ -40,17 +40,23 @@ CATEGORIES = {
 LOCAL_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mes_produits_sauves.csv")
 
 def parser_ligne_produit(ligne, current_id):
-    nom = ligne.get('Title') or ligne.get('nom') or 'Produit AliExpress'
-    prix = ligne.get('Sale price') or ligne.get('prix') or '19.99'
-    if not prix or prix == 'nan': prix = '19.99'
-    image = ligne.get('Product Image Url') or ligne.get('image') or 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500'
-    if ',' in image: image = image.split(',')[0].strip()
-    galerie_raw = ligne.get('Main images url') or ligne.get('galerie') or ''
-    galerie = [img.strip() for img in galerie_raw.split(',') if img.strip()]
-    if not galerie or galerie == ['nan']: galerie = [image]
-    desc = ligne.get('Product description html') or ligne.get('description') or 'Aucune description disponible.'
+    nom = ligne.get('Title') or ligne.get('nom') or ligne.get('name') or ligne.get('Titre') or f'Produit #{current_id}'
+    prix = ligne.get('Sale price') or ligne.get('prix') or ligne.get('price') or ligne.get('Prix') or '19.99'
+    if not prix or str(prix).lower() == 'nan' or str(prix).strip() == '': 
+        prix = '19.99'
     
-    nom_lower = nom.lower()
+    image = ligne.get('Product Image Url') or ligne.get('image') or ligne.get('img') or 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500'
+    if ',' in str(image): 
+        image = str(image).split(',')[0].strip()
+        
+    galerie_raw = ligne.get('Main images url') or ligne.get('galerie') or ligne.get('gallery') or ''
+    galerie = [img.strip() for img in str(galerie_raw).split(',') if img.strip() and img.strip().lower() != 'nan']
+    if not galerie: 
+        galerie = [image]
+        
+    desc = ligne.get('Product description html') or ligne.get('description') or ligne.get('desc') or 'Aucune description disponible.'
+    
+    nom_lower = str(nom).lower()
     desc_lower = str(desc).lower()
     texte_complet = nom_lower + " " + desc_lower
     
@@ -74,18 +80,21 @@ def parser_ligne_produit(ligne, current_id):
         categorie = "general"
 
     return {
-        "id": current_id, "nom": nom, "prix": str(prix), "image": image,
-        "galerie": galerie[:5], "categorie": categorie, "description": str(desc)[:300] + "..." if len(str(desc)) > 300 else str(desc)
+        "id": current_id, "nom": str(nom), "prix": str(prix).strip(), "image": str(image).strip(),
+        "galerie": galerie[:5], "categorie": categorie, "description": str(desc)
     }
 
 def charger_produits():
     if os.path.exists(LOCAL_STATE_FILE):
         produits = []
         try:
-            with open(LOCAL_STATE_FILE, mode='r', encoding='utf-8') as f:
+            with open(LOCAL_STATE_FILE, mode='r', encoding='utf-8-sig', errors='ignore') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    row['id'] = int(row['id'])
+                    try:
+                        row['id'] = int(row.get('id', 0))
+                    except:
+                        row['id'] = 0
                     galerie_raw = row.get('galerie', '')
                     if galerie_raw.startswith('['):
                         try:
@@ -97,27 +106,8 @@ def charger_produits():
                     produits.append(row)
             if produits:
                 return produits
-        except:
-            pass
-
-    produits_importes = []
-    dossier_csv = r"C:\csv.aliexpress"
-    c = 0
-    if os.path.exists(dossier_csv):
-        for fichier in os.listdir(dossier_csv):
-            if fichier.endswith(".csv"):
-                chemin_complet = os.path.join(dossier_csv, fichier)
-                try:
-                    with open(chemin_complet, mode='r', encoding='utf-8-sig', errors='ignore') as f:
-                        lecteur = csv.DictReader(f)
-                        for ligne in lecteur:
-                            produits_importes.append(parser_ligne_produit(ligne, c))
-                            c += 1
-                except Exception as e:
-                    print(f"Erreur lecture {fichier}: {e}")
-    if produits_importes:
-        sauvegarder_produits(produits_importes)
-        return produits_importes
+        except Exception as e:
+            print(f"Erreur chargement local: {e}")
     return []
 
 def sauvegarder_produits(produits):
@@ -132,7 +122,6 @@ def sauvegarder_produits(produits):
             writer.writerow(p_copy)
 
 PRODUITS = charger_produits()
-COMMANDES = []
 
 CSS_STYLED = """
 <style>
@@ -448,7 +437,7 @@ def add(p_id):
 def cart():
     lang = request.args.get('lang', 'fr')
     items = session.get('cart', [])
-    total = sum(float(item['prix']) for item in items if item['prix'].replace('.','',1).isdigit())
+    total = sum(float(str(item['prix']).replace(',', '.')) for item in items if str(item['prix']).replace('.','',1).replace(',','',1).isdigit())
     return render_template_string(HTML_CART, cart=items, total=total, lang=lang, t=TRADUCTIONS.get(lang, TRADUCTIONS['fr']))
 
 @app.route('/remove/<int:index>')
@@ -467,14 +456,14 @@ def clear():
 @app.route('/checkout')
 def checkout():
     if not session.get('cart', []): return redirect(url_for('home'))
-    total = sum(float(item['prix']) for item in session['cart'] if item['prix'].replace('.','',1).isdigit())
+    total = sum(float(str(item['prix']).replace(',', '.')) for item in session['cart'] if str(item['prix']).replace('.','',1).replace(',','',1).isdigit())
     return render_template_string(HTML_CHECKOUT, total=total)
 
 @app.route('/process_order', methods=['POST'])
 def process_order():
     items = session.get('cart', [])
     if not items: return redirect(url_for('home'))
-    total = sum(float(item['prix']) for item in items if item['prix'].replace('.','',1).isdigit())
+    total = sum(float(str(item['prix']).replace(',', '.')) for item in items if str(item['prix']).replace('.','',1).replace(',','',1).isdigit())
     
     data = urllib.parse.urlencode({
         'USER': PAYPAL_API_USER, 'PWD': PAYPAL_API_PWD, 'SIGNATURE': PAYPAL_API_SIGNATURE,
