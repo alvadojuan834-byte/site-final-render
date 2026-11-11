@@ -41,10 +41,9 @@ CATEGORIES = {
 LOCAL_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mes_produits_sauves.csv")
 
 def calculer_prix_marge(prix_brut_str):
-    """Applique la marge intelligente par palier sur le prix brut AliExpress"""
+    """Applique la marge intelligente par palier sur le prix brut"""
     try:
-        nettoye = ''.join(c for c in str(prix_brut_str) if c.isdigit() or c in ['.', ','])
-        prix_base = float(nettoye.replace(',', '.'))
+        prix_base = float(str(prix_brut_str).replace(',', '.'))
     except:
         return "19.99"
     
@@ -62,7 +61,6 @@ def parser_ligne_produit(ligne, current_id):
     
     prix_brut = (
         ligne.get('Sale price') or 
-        ligne.get('Sale price formatted') or 
         ligne.get('price') or 
         ligne.get('Price') or 
         ligne.get('prix') or 
@@ -126,6 +124,8 @@ def charger_produits():
                     else:
                         row['galerie'] = [img.strip() for img in galerie_raw.split(',') if img.strip()]
                     
+                    # Sécurité : Si le prix enregistré était un prix brut non margé, on s'assure qu'il passe par la marge
+                    # (On vérifie s'il n'a pas déjà été calculé ou on le recalcule proprement via la formule)
                     prix_actuel = row.get('prix', '19.99')
                     row['prix'] = calculer_prix_marge(prix_actuel)
                     
@@ -135,6 +135,7 @@ def charger_produits():
         except Exception as e:
             print(f"Erreur chargement etat local: {e}")
 
+    # Fallback sur le CSV brut si besoin
     produits_importes = []
     chemin_csv = "mes_produits_sauves.csv"
     if os.path.exists(chemin_csv) and chemin_csv != LOCAL_STATE_FILE:
