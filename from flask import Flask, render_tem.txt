@@ -58,10 +58,19 @@ def calculer_prix_marge(prix_brut_str):
 
 def parser_ligne_produit(ligne, current_id):
     nom = ligne.get('Title') or ligne.get('nom') or 'Produit AliExpress'
-    prix_brut = ligne.get('Sale price') or ligne.get('prix') or '19.99'
-    if not prix_brut or prix_brut == 'nan': prix_brut = '19.99'
     
-    # Application de la marge automatique ici
+    # Recherche élargie pour s'adapter à toutes les variantes de colonnes de prix dans les CSV
+    prix_brut = (
+        ligne.get('Sale price') or 
+        ligne.get('price') or 
+        ligne.get('Price') or 
+        ligne.get('prix') or 
+        ligne.get('Product Price') or 
+        '19.99'
+    )
+    if not prix_brut or prix_brut == 'nan': 
+        prix_brut = '19.99'
+    
     prix = calculer_prix_marge(prix_brut)
 
     image = ligne.get('Product Image Url') or ligne.get('image') or 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500'
