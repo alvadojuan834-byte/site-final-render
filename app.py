@@ -39,61 +39,26 @@ CATEGORIES = {
 
 LOCAL_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mes_produits_sauves.csv")
 
-def parser_dossier_csv():
-    produits_importes = []
-    dossier_csv = r"C:\csv.aliexpress"
-    if not os.path.exists(dossier_csv):
-        return []
-
-    c = 0
-    for fichier in os.listdir(dossier_csv):
-        if fichier.endswith(".csv"):
-            chemin_complet = os.path.join(dossier_csv, fichier)
-            try:
-                with open(chemin_complet, mode='r', encoding='utf-8-sig', errors='ignore') as f:
-                    lecteur = csv.DictReader(f)
-                    for ligne in lecteur:
-                        nom = ligne.get('Title') or ligne.get('nom') or 'Produit AliExpress'
-                        prix = ligne.get('Sale price') or ligne.get('prix') or '19.99'
-                        if not prix: prix = '19.99'
-                        image = ligne.get('Product Image Url') or ligne.get('image') or 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500'
-                        if ',' in image: image = image.split(',')[0].strip()
-                        galerie_raw = ligne.get('Main images url') or ligne.get('galerie') or ''
-                        galerie = [img.strip() for img in galerie_raw.split(',') if img.strip()]
-                        if not galerie: galerie = [image]
-                        desc = ligne.get('Product description html') or ligne.get('description') or 'Aucune description disponible.'
-                        
-                        nom_lower = nom.lower()
-                        desc_lower = str(desc).lower()
-                        texte_complet = nom_lower + " " + desc_lower
-                        
-                        if any(k in texte_complet for k in ['pokemon', 'pokémon', 'card', 'carte']):
-                            categorie = "pokemon"
-                        elif any(k in texte_complet for k in ['gaming', 'gamer', 'clavier', 'souris', 'manette', 'headset', 'ps5', 'xbox']):
-                            categorie = "gaming"
-                        elif any(k in texte_complet for k in ['pc', 'ordinateur', 'laptop', 'ecran', 'cpu', 'clavier']):
-                            categorie = "pc"
-                        elif any(k in texte_complet for k in ['hifi', 'audio', 'casque', 'ecouteurs', 'enceinte', 'bluetooth', 'soundbar', 'mp3']):
-                            categorie = "hifi"
-                        elif any(k in texte_complet for k in ['telephone', 'smartphone', 'chargeur', 'cable', 'iphone', 'samsung']):
-                            categorie = "telephonie"
-                        elif any(k in texte_complet for k in ['chauffage', 'radiateur', 'ventilateur', 'climatisation']):
-                            categorie = "chauffage"
-                        elif any(k in texte_complet for k in ['sport', 'fitness', 'velo', 'musculation']):
-                            categorie = "sport"
-                        elif any(k in texte_complet for k in ['lampe', 'eclairage', 'led', 'auto', 'voiture']):
-                            categorie = "eclairage"
-                        else:
-                            categorie = "general"
-
-                        produits_importes.append({
-                            "id": c, "nom": nom, "prix": str(prix), "image": image,
-                            "galerie": galerie[:5], "categorie": categorie, "description": str(desc)[:300] + "..."
-                        })
-                        c += 1
-            except Exception as e:
-                print(f"Erreur lecture {fichier}: {e}")
-    return produits_importes
+def classifier_produit(nom, desc):
+    texte_complet = (str(nom) + " " + str(desc)).lower()
+    if any(k in texte_complet for k in ['pokemon', 'pokémon', 'card', 'cards', 'carte', 'cartes', 'tcg']):
+        return "pokemon"
+    elif any(k in texte_complet for k in ['gaming', 'gamer', 'keyboard', 'clavier', 'mouse', 'souris', 'controller', 'manette', 'headset', 'ps5', 'xbox', 'nintendo']):
+        return "gaming"
+    elif any(k in texte_complet for k in ['pc', 'computer', 'ordinateur', 'laptop', 'screen', 'ecran', 'cpu', 'gpu', 'monitor']):
+        return "pc"
+    elif any(k in texte_complet for k in ['hifi', 'audio', 'headphone', 'casque', 'earphone', 'ecouteurs', 'speaker', 'enceinte', 'bluetooth', 'soundbar', 'mp3', 'mic']):
+        return "hifi"
+    elif any(k in texte_complet for k in ['phone', 'smartphone', 'telephone', 'charger', 'chargeur', 'cable', 'iphone', 'samsung', 'case', 'coque']):
+        return "telephonie"
+    elif any(k in texte_complet for k in ['heater', 'chauffage', 'radiateur', 'fan', 'ventilateur', 'air conditioning', 'climatisation', 'warm']):
+        return "chauffage"
+    elif any(k in texte_complet for k in ['sport', 'fitness', 'bike', 'velo', 'gym', 'musculation', 'running']):
+        return "sport"
+    elif any(k in texte_complet for k in ['lamp', 'lampe', 'light', 'eclairage', 'led', 'auto', 'car', 'voiture', 'bulb']):
+        return "eclairage"
+    else:
+        return "general"
 
 def charger_produits():
     if os.path.exists(LOCAL_STATE_FILE):
@@ -111,27 +76,35 @@ def charger_produits():
                             row['galerie'] = [row.get('image', '')]
                     else:
                         row['galerie'] = [img.strip() for img in galerie_raw.split(',') if img.strip()]
+                    
+                    # Charger les variantes couleurs/tailles si enregistrées
+                    for champ in ['couleurs', 'tailles']:
+                        raw_val = row.get(champ, '')
+                        if raw_val.startswith('['):
+                            try:
+                                row[champ] = ast.literal_eval(raw_val)
+                            except:
+                                row[champ] = []
+                        else:
+                            row[champ] = [v.strip() for v in raw_val.split(',') if v.strip()]
                     produits.append(row)
             if produits:
                 return produits
         except:
             pass
-
-    produits_importes = parser_dossier_csv()
-    if produits_importes:
-        sauvegarder_produits(produits_importes)
-        return produits_importes
     return []
 
 def sauvegarder_produits(produits):
     os.makedirs(os.path.dirname(LOCAL_STATE_FILE), exist_ok=True)
     with open(LOCAL_STATE_FILE, mode='w', newline='', encoding='utf-8') as f:
-        fieldnames = ['id', 'nom', 'prix', 'image', 'galerie', 'categorie', 'description']
+        fieldnames = ['id', 'nom', 'prix', 'image', 'galerie', 'categorie', 'description', 'couleurs', 'tailles']
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         for p in produits:
             p_copy = p.copy()
             p_copy['galerie'] = str(p_copy['galerie'])
+            p_copy['couleurs'] = str(p_copy.get('couleurs', []))
+            p_copy['tailles'] = str(p_copy.get('tailles', []))
             writer.writerow(p_copy)
 
 PRODUITS = charger_produits()
@@ -166,6 +139,7 @@ CSS_STYLED = """
     .btn-buy { background: #6d28d9; color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; text-decoration: none; text-align: center; display: block; width: 100%; }
     .btn-buy:hover { background: #581c87; }
     .btn-paypal { background: #0070ba; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; text-decoration: none; text-align: center; display: block; width: 100%; }
+    .variant-select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 15px; font-size: 14px; outline: none; background: #f8fafc; }
     .pagination { display: flex; justify-content: center; gap: 8px; margin: 40px 0; }
     .pagination a, .pagination span { padding: 8px 14px; border-radius: 6px; font-weight: bold; text-decoration: none; font-size: 14px; border: 1px solid #cbd5e1; }
     .pagination a { background: white; color: #4c1d95; }
@@ -253,15 +227,44 @@ HTML_PRODUCT = """
                 <img src="{{ p.image }}" id="mainImg" style="width: 100%; height: 380px; object-fit: cover; border-radius: 8px;">
                 <div style="display: flex; gap: 10px; margin-top: 15px; overflow-x: auto;">
                     {% for img in p.galerie %}
-                    <img src="{{ img }}" style="width: 70px; height: 70px; object-fit: cover; border-radius: 6px; cursor: pointer;" onclick="document.getElementById('mainImg').src = this.src">
+                    <img src="{{ img }}" style="width: 70px; height: 70px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 2px solid #cbd5e1;" onclick="document.getElementById('mainImg').src = this.src">
                     {% endfor %}
                 </div>
             </div>
             <div>
                 <h1 style="font-size: 22px; font-weight: 800; margin-bottom: 12px;">{{ p.nom }}</h1>
                 <div style="font-size: 28px; font-weight: 900; color: #2563eb; margin-bottom: 20px;">{{ p.prix }} €</div>
-                <div style="color: #4b5563; font-size: 13px; line-height: 1.6; margin-bottom: 25px;">{{ p.description | safe }}</div>
-                <form action="/add/{{ p.id }}?lang={{ lang }}" method="POST"><button type="submit" class="btn-buy" style="padding: 14px; font-size: 16px;">{{ t.buy }}</button></form>
+                
+                <form action="/add/{{ p.id }}?lang={{ lang }}" method="POST">
+                    {% if p.couleurs %}
+                    <div style="margin-bottom: 15px;">
+                        <label style="display:block; font-weight:bold; font-size:13px; margin-bottom:5px;">🎨 {{ t.color }} :</label>
+                        <select name="couleur" class="variant-select">
+                            {% for col in p.couleurs %}
+                            <option value="{{ col }}">{{ col }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+
+                    {% if p.tailles %}
+                    <div style="margin-bottom: 15px;">
+                        <label style="display:block; font-weight:bold; font-size:13px; margin-bottom:5px;">📏 {{ t.size }} :</label>
+                        <select name="taille" class="variant-select">
+                            {% for sz in p.tailles %}
+                            <option value="{{ sz }}">{{ sz }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+
+                    <button type="submit" class="btn-buy" style="padding: 14px; font-size: 16px; margin-top: 10px;">{{ t.buy }}</button>
+                </form>
+
+                <div style="margin-top: 25px; border-top: 1px solid #e2e8f0; padding-top: 15px;">
+                    <h3 style="font-size: 14px; font-weight: 800; color: #2e1065; margin-bottom: 8px;">{{ t.desc }}</h3>
+                    <div style="color: #4b5563; font-size: 13px; line-height: 1.6;">{{ p.description | safe }}</div>
+                </div>
             </div>
         </div>
     </div>
@@ -286,7 +289,15 @@ HTML_CART = """
                 {% for item in cart %}
                 <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #f1f5f9; padding: 15px 0;">
                     <img src="{{ item.image }}" style="width:70px; height:70px; object-fit:cover; border-radius:8px;">
-                    <div style="flex-grow:1; margin-left: 20px; font-weight:700; font-size:14px;">{{ item.nom }}</div>
+                    <div style="flex-grow:1; margin-left: 20px;">
+                        <div style="font-weight:700; font-size:14px;">{{ item.nom }}</div>
+                        {% if item.selected_couleur or item.selected_taille %}
+                        <div style="font-size:12px; color:#64748b; margin-top:4px;">
+                            {% if item.selected_couleur %}🎨 {{ item.selected_couleur }}{% endif %}
+                            {% if item.selected_taille %} | 📏 {{ item.selected_taille }}{% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
                     <div style="font-weight:900; font-size:18px; color:#2563eb; margin-right: 25px;">{{ item.prix }} €</div>
                     <a href="/remove/{{ loop.index0 }}?lang={{ lang }}" style="color:#ef4444; font-weight:bold; text-decoration:none;">Supprimer</a>
                 </div>
@@ -377,10 +388,10 @@ HTML_ADMIN = """
     </div>
     <div class="container">
         <div style="background: white; padding: 25px; border-radius: 12px; margin-bottom: 25px;">
-            <h3 style="color: #2e1065; margin-bottom: 10px;">📂 Importer un fichier CSV</h3>
+            <h3 style="color: #2e1065; margin-bottom: 10px;">📂 Importer un fichier CSV (Cumulatif)</h3>
             <form action="/admin/import_csv" method="POST" enctype="multipart/form-data" style="display: flex; gap: 15px; align-items: center;">
                 <input type="file" name="fichier_csv" accept=".csv" required style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;">
-                <button type="submit" style="background: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold;">📥 Importer</button>
+                <button type="submit" style="background: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold;">📥 Ajouter au catalogue</button>
             </form>
         </div>
         <div style="background: white; padding: 25px; border-radius: 12px;">
@@ -444,7 +455,13 @@ def add(p_id):
     lang = request.args.get('lang', 'fr')
     if 'cart' not in session: session['cart'] = []
     p = next((item for item in PRODUITS if item["id"] == p_id), None)
-    if p: session['cart'].append(p); session.modified = True
+    if p:
+        # Copier le produit pour y attacher les variantes choisies
+        item_cart = p.copy()
+        item_cart['selected_couleur'] = request.form.get('couleur', '')
+        item_cart['selected_taille'] = request.form.get('taille', '')
+        session['cart'].append(item_cart)
+        session.modified = True
     return redirect(url_for('cart', lang=lang))
 
 @app.route('/cart')
@@ -540,44 +557,45 @@ def admin_import_csv():
         chemin_fichier = os.path.join(dossier_temp, fichier.filename)
         fichier.save(chemin_fichier)
         
-        nouveaux_produits = []
+        global PRODUITS
+        prochain_id = max([p['id'] for p in PRODUITS], default=-1) + 1
+        
+        nouveaux_ajouts = []
         try:
             with open(chemin_fichier, mode='r', encoding='utf-8-sig', errors='ignore') as f:
                 lecteur = csv.DictReader(f)
-                c = 0
                 for ligne in lecteur:
                     nom = ligne.get('Title') or ligne.get('nom') or 'Produit'
                     prix = ligne.get('Sale price') or ligne.get('prix') or '19.99'
                     if not prix: prix = '19.99'
                     image = ligne.get('Product Image Url') or ligne.get('image') or ''
                     if ',' in image: image = image.split(',')[0].strip()
+                    
                     galerie_raw = ligne.get('Main images url') or ligne.get('galerie') or ''
                     galerie = [img.strip() for img in galerie_raw.split(',') if img.strip()]
                     if not galerie: galerie = [image]
-                    desc = ligne.get('Product description html') or ligne.get('description') or ''
                     
-                    texte_complet = (nom + " " + str(desc)).lower()
-                    if any(k in texte_complet for k in ['pokemon', 'pokémon', 'card', 'carte']): categorie = "pokemon"
-                    elif any(k in texte_complet for k in ['gaming', 'gamer', 'clavier', 'souris', 'manette', 'headset', 'ps5', 'xbox']): categorie = "gaming"
-                    elif any(k in texte_complet for k in ['pc', 'ordinateur', 'laptop', 'ecran', 'cpu']): categorie = "pc"
-                    elif any(k in texte_complet for k in ['hifi', 'audio', 'casque', 'ecouteurs', 'enceinte', 'bluetooth', 'soundbar']): categorie = "hifi"
-                    elif any(k in texte_complet for k in ['telephone', 'smartphone', 'chargeur', 'cable', 'iphone', 'samsung']): categorie = "telephonie"
-                    elif any(k in texte_complet for k in ['chauffage', 'radiateur', 'ventilateur']): categorie = "chauffage"
-                    elif any(k in texte_complet for k in ['sport', 'fitness', 'velo']): categorie = "sport"
-                    elif any(k in texte_complet for k in ['lampe', 'eclairage', 'led', 'auto']): categorie = "eclairage"
-                    else: categorie = "general"
+                    desc = ligne.get('Product description html') or ligne.get('description') or ''
+                    categorie = classifier_produit(nom, desc)
+                    
+                    # Récupération des variantes (couleurs / tailles depuis le CSV AliExpress)
+                    couleurs_raw = ligne.get('Color') or ligne.get('couleurs') or ''
+                    couleurs = [c.strip() for c in couleurs_raw.split(',') if c.strip()]
+                    
+                    tailles_raw = ligne.get('Size') or ligne.get('tailles') or ''
+                    tailles = [s.strip() for s in tailles_raw.split(',') if s.strip()]
 
-                    nouveaux_produits.append({
-                        "id": c, "nom": nom, "prix": str(prix), "image": image,
-                        "galerie": galerie[:5], "categorie": categorie, "description": str(desc)[:300] + "..."
+                    nouveaux_ajouts.append({
+                        "id": prochain_id, "nom": nom, "prix": str(prix), "image": image,
+                        "galerie": galerie[:5], "categorie": categorie, "description": str(desc)[:500],
+                        "couleurs": couleurs, "tailles": tailles
                     })
-                    c += 1
+                    prochain_id += 1
         except Exception as e:
             print(f"Erreur import: {e}")
 
-        if nouveaux_produits:
-            global PRODUITS
-            PRODUITS = nouveaux_produits
+        if nouveaux_ajouts:
+            PRODUITS.extend(nouveaux_ajouts)
             sauvegarder_produits(PRODUITS)
             
     return redirect(url_for('admin_panel'))
