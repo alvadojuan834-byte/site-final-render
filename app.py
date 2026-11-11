@@ -14,9 +14,9 @@ PAYPAL_API_SIGNATURE = "AaRSU2y8OAIEIxg92K4Zpd.Ucl0BAZSsK.CC9mosIjzFIvsppRWx-4Y"
 PAYPAL_URL = "https://api-3t.paypal.com/nvp"
 ADMIN_PASSWORD = "monpassadmin123"
 
-# Chargement automatique et réel des CSV depuis le dossier Bureau/csv.aliexpress
 def charger_vrais_produits():
     produits = []
+    # Recherche des CSV dans le dossier local ou fallback si executé sur le serveur distant
     dossier_csv = os.path.expanduser(r"~\Desktop\csv.aliexpress")
     fichiers = glob.glob(os.path.join(dossier_csv, "*.csv"))
     
@@ -30,7 +30,6 @@ def charger_vrais_produits():
             except Exception:
                 continue
                 
-        # Normalisation des colonnes courantes AliExpress
         cols = {c.lower(): c for c in df.columns}
         col_nom = next((cols[c] for c in ['title', 'product title', 'nom', 'subject'] if c in cols), df.columns[0] if len(df.columns) > 0 else None)
         col_prix = next((cols[c] for c in ['price', 'sale price', 'prix', 'current price'] if c in cols), df.columns[1] if len(df.columns) > 1 else None)
@@ -41,12 +40,11 @@ def charger_vrais_produits():
             continue
 
         for _, row in df.iterrows():
-            nom = str(row.get(col_nom, "Produit sans nom"))
-            if nom == "nan" or not nom.strip():
+            nom = str(row.get(col_nom, ""))
+            if not nom or nom == "nan" or not nom.strip():
                 continue
                 
             prix_brut = str(row.get(col_prix, "0"))
-            # Nettoyage propre du prix
             prix_clean = "".join([c for c in prix_brut if c.isdigit() or c == '.'])
             try:
                 prix = str(round(float(prix_clean), 2))
@@ -54,12 +52,30 @@ def charger_vrais_produits():
                 prix = "19.99"
 
             img = str(row.get(col_img, "https://ae01.alicdn.com/kf.jpg"))
-            if img == "nan" or not img.startswith('http'):
+            if not img.startswith('http'):
                 img = "https://ae01.alicdn.com/kf.jpg"
 
             desc = str(row.get(col_desc, "")) if col_desc and str(row.get(col_desc, "")) != "nan" else nom
-
-            cat = classifier_produit(nom, desc)
+            
+            texte = (nom + " " + desc).lower()
+            if any(k in texte for k in ['heater', 'chauffage', 'radiateur', 'fan heater', 'climatiseur']):
+                cat = "chauffage"
+            elif any(k in texte for k in ['pokemon', 'pokémon', 'card', 'tcg', 'booster']):
+                cat = "pokemon"
+            elif any(k in texte for k in ['pc', 'computer', 'ordinateur', 'laptop', 'mini pc', 'screen', 'ecran', 'cpu', 'gpu', 'ssd']):
+                cat = "pc"
+            elif any(k in texte for k in ['gaming', 'gamer', 'keyboard', 'mouse', 'controller', 'manette', 'headset', 'ps5', 'xbox', 'switch']):
+                cat = "gaming"
+            elif any(k in texte for k in ['hifi', 'audio', 'headphone', 'earphone', 'speaker', 'enceinte', 'bluetooth']):
+                cat = "hifi"
+            elif any(k in texte for k in ['phone', 'smartphone', 'telephone', 'charger', 'chargeur', 'cable', 'iphone', 'samsung']):
+                cat = "telephonie"
+            elif any(k in texte for k in ['sport', 'fitness', 'bike', 'vélo', 'gym', 'running']):
+                cat = "sport"
+            elif any(k in texte for k in ['lamp', 'lampe', 'light', 'eclairage', 'led', 'auto', 'car']):
+                cat = "eclairage"
+            else:
+                cat = "general"
 
             produits.append({
                 "id": id_compteur,
@@ -69,33 +85,12 @@ def charger_vrais_produits():
                 "galerie": [img],
                 "categorie": cat,
                 "description": desc,
-                "couleurs": ["Standard", "Noir", "Blanc"],
+                "couleurs": ["Standard"],
                 "tailles": ["Standard"]
             })
             id_compteur += 1
             
     return produits
-
-def classifier_produit(nom, desc):
-    texte = (str(nom) + " " + str(desc)).lower()
-    if any(k in texte for k in ['heater', 'chauffage', 'radiateur', 'fan heater', 'climatiseur', 'convecteur']):
-        return "chauffage"
-    elif any(k in texte for k in ['pokemon', 'pokémon', 'card', 'cards', 'tcg', 'booster']):
-        return "pokemon"
-    elif any(k in texte for k in ['pc', 'computer', 'ordinateur', 'laptop', 'mini pc', 'screen', 'ecran', 'cpu', 'gpu', 'ssd']):
-        return "pc"
-    elif any(k in texte for k in ['gaming', 'gamer', 'keyboard', 'mouse', 'controller', 'manette', 'headset', 'ps5', 'xbox', 'switch']):
-        return "gaming"
-    elif any(k in texte for k in ['hifi', 'audio', 'headphone', 'earphone', 'speaker', 'enceinte', 'bluetooth', 'microphone']):
-        return "hifi"
-    elif any(k in texte for k in ['phone', 'smartphone', 'telephone', 'charger', 'chargeur', 'cable', 'iphone', 'samsung', 'coque']):
-        return "telephonie"
-    elif any(k in texte for k in ['sport', 'fitness', 'bike', 'vélo', 'gym', 'running', 'yoga']):
-        return "sport"
-    elif any(k in texte for k in ['lamp', 'lampe', 'light', 'eclairage', 'led', 'auto', 'car', 'voiture']):
-        return "eclairage"
-    else:
-        return "general"
 
 PRODUITS = charger_vrais_produits()
 
@@ -405,7 +400,7 @@ HTML_ADMIN = """
     </div>
     <div class="container">
         <div style="background: white; padding: 25px; border-radius: 12px;">
-            <h3 style="color: #2e1065; margin-bottom: 15px;">⚙️ Gestion des vrais produits CSV ({{ produits|length }} articles)</h3>
+            <h3 style="color: #2e1065; margin-bottom: 15px;">⚙️ Gestion des vrais produits ({{ produits|length }} articles)</h3>
             <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
                 <tr style="border-bottom: 2px solid #e2e8f0; text-align: left;">
                     <th style="padding: 10px;">ID</th><th style="padding: 10px;">Nom</th><th style="padding: 10px;">Prix</th><th style="padding: 10px;">Catégorie</th>
