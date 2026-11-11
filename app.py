@@ -37,9 +37,9 @@ CATEGORIES = {
     "general": "✨ Tendances Générales"
 }
 
-# Fichier et dossier pointant vers le disque persistant /data sur Render
-LOCAL_STATE_FILE = "/data/mes_produits_sauves.csv"
-DOSSIER_CSV_RENDER = "/data/csv.aliexpress"
+# Fichier et dossier pointant vers le disque persistant /var/data sur Render
+LOCAL_STATE_FILE = "/var/data/mes_produits_sauves.csv"
+DOSSIER_CSV_RENDER = "/var/data/csv.aliexpress"
 
 def parser_dossier_csv():
     produits_importes = []
@@ -538,12 +538,11 @@ def admin_import_csv():
     fich = request.files.get('fichier_csv')
     if fich:
         os.makedirs(DOSSIER_CSV_RENDER, exist_ok=True)
-        chemin = os.path.join(DOSSIER_CSV_RENDER, fich.filename)
-        fich.save(chemin)
+        fich.save(os.path.join(DOSSIER_CSV_RENDER, fich.filename))
         global PRODUITS
         PRODUITS = parser_dossier_csv()
         sauvegarder_produits(PRODUITS)
     return redirect(url_for('admin_panel'))
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
