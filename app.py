@@ -100,21 +100,19 @@ def charger_produits():
         except:
             pass
 
-    produits_importes = []
-    dossier_csv = r"C:\csv.aliexpress"
-    c = 0
-    if os.path.exists(dossier_csv):
-        for fichier in os.listdir(dossier_csv):
-            if fichier.endswith(".csv"):
-                chemin_complet = os.path.join(dossier_csv, fichier)
-                try:
-                    with open(chemin_complet, mode='r', encoding='utf-8-sig', errors='ignore') as f:
-                        lecteur = csv.DictReader(f)
-                        for ligne in lecteur:
-                            produits_importes.append(parser_ligne_produit(ligne, c))
-                            c += 1
-                except Exception as e:
-                    print(f"Erreur lecture {fichier}: {e}")
+   produits_importes = []
+chemin_csv = "mes_produits_sauves.csv"
+c = 0
+
+if os.path.exists(chemin_csv):
+    try:
+        with open(chemin_csv, mode='r', encoding='utf-8') as f:
+            lecteur = csv.DictReader(f)
+            for ligne in lecteur:
+                produits_importes.append(parser_ligne(ligne))
+                c += 1
+    except Exception as e:
+        print(f"Erreur lecture {chemin_csv}: {e}")
     if produits_importes:
         sauvegarder_produits(produits_importes)
         return produits_importes
