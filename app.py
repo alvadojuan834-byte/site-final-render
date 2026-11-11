@@ -17,12 +17,12 @@ PAYPAL_URL = "https://api-3t.paypal.com/nvp"
 ADMIN_PASSWORD = "monpassadmin123"
 
 TRADUCTIONS = {
-    "fr": {"shop": "Catalogue Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Panier", "all": "Toutes les catégories", "buy": "Acheter", "total": "Total", "checkout": "🔒 Valider la commande", "empty": "Votre panier est vide.", "color": "Couleur", "size": "Taille", "desc": "Description du produit", "search_placeholder": "Rechercher un produit..."},
-    "be": {"shop": "Catalogue Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Panier", "all": "Toutes les catégories", "buy": "Acheter", "total": "Total", "checkout": "🔒 Valider la commande", "empty": "Votre panier est vide wesh.", "color": "Couleur", "size": "Taille", "desc": "Description du produit", "search_placeholder": "Rechercher un produit..."},
-    "en": {"shop": "Catalogue Direct", "promo": "🔥 AliExpress Boost Promos 🔥", "cart": "Cart", "all": "All categories", "buy": "Buy Now", "total": "Total", "checkout": "🔒 Checkout", "empty": "Your cart is empty.", "color": "Color", "size": "Size", "desc": "Product description", "search_placeholder": "Search a product..."},
-    "de": {"shop": "Catalogue Direct", "promo": "🔥 AliExpress Boost Angebote 🔥", "cart": "Warenkorb", "all": "Alle Kategorien", "buy": "Kaufen", "total": "Gesamt", "checkout": "🔒 Zur Kasse", "empty": "Ihr Warenkorb ist leer.", "color": "Farbe", "size": "Größe", "desc": "Produktbeschreibung", "search_placeholder": "Produkt suchen..."},
-    "es": {"shop": "Catalogue Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Carrito", "all": "Todas las categorías", "buy": "Comprar", "total": "Total", "checkout": "🔒 Tramitar pedido", "empty": "Tu carrito está vacío.", "color": "Color", "talla": "Talla", "desc": "Descripción del producto", "search_placeholder": "Buscar un producto..."},
-    "nl": {"shop": "Catalogue Direct", "promo": "🔥 AliExpress Boost Promo's 🔥", "cart": "Winkelmand", "all": "Alle categorieën", "buy": "Kopen", "total": "Totaal", "checkout": "🔒 Afrekenen", "empty": "Je winkelmand is leeg.", "color": "Kleur", "size": "Maat", "desc": "Produktbeschrijving", "search_placeholder": "Zoek een product..."}
+    "fr": {"shop": "Mon Shop Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Panier", "all": "Toutes les catégories", "buy": "Acheter", "total": "Total", "checkout": "🔒 Valider la commande", "empty": "Votre panier est vide.", "color": "Couleur", "size": "Taille", "desc": "Description du produit", "search_placeholder": "Rechercher un produit..."},
+    "be": {"shop": "Mon Shop Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Panier", "all": "Toutes les catégories", "buy": "Acheter", "total": "Total", "checkout": "🔒 Valider la commande", "empty": "Votre panier est vide wesh.", "color": "Couleur", "size": "Taille", "desc": "Description du produit", "search_placeholder": "Rechercher un produit..."},
+    "en": {"shop": "Mon Shop Direct", "promo": "🔥 AliExpress Boost Promos 🔥", "cart": "Cart", "all": "All categories", "buy": "Buy Now", "total": "Total", "checkout": "🔒 Checkout", "empty": "Your cart is empty.", "color": "Color", "size": "Size", "desc": "Product description", "search_placeholder": "Search a product..."},
+    "de": {"shop": "Mon Shop Direct", "promo": "🔥 AliExpress Boost Angebote 🔥", "cart": "Warenkorb", "all": "Alle Kategorien", "buy": "Kaufen", "total": "Gesamt", "checkout": "🔒 Zur Kasse", "empty": "Ihr Warenkorb ist leer.", "color": "Farbe", "size": "Größe", "desc": "Produktbeschreibung", "search_placeholder": "Produkt suchen..."},
+    "es": {"shop": "Mon Shop Direct", "promo": "🔥 Promos Boost AliExpress 🔥", "cart": "Carrito", "all": "Todas las categorías", "buy": "Comprar", "total": "Total", "checkout": "🔒 Tramitar pedido", "empty": "Tu carrito está vacío.", "color": "Color", "talla": "Talla", "desc": "Descripción del producto", "search_placeholder": "Buscar un producto..."},
+    "nl": {"shop": "Mon Shop Direct", "promo": "🔥 AliExpress Boost Promo's 🔥", "cart": "Winkelmand", "all": "Alle categorieën", "buy": "Kopen", "total": "Totaal", "checkout": "🔒 Afrekenen", "empty": "Je winkelmand is leeg.", "color": "Kleur", "size": "Maat", "desc": "Produktbeschrijving", "search_placeholder": "Zoek een product..."}
 }
 
 CATEGORIES = {
@@ -37,7 +37,7 @@ CATEGORIES = {
     "general": "✨ Tendances Générales"
 }
 
-LOCAL_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "produits_etat.csv")
+LOCAL_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mes_produits_sauves.csv")
 
 def parser_dossier_csv():
     produits_importes = []
@@ -118,15 +118,10 @@ def charger_produits():
             pass
 
     produits_importes = parser_dossier_csv()
-    if not produits_importes:
-        produits_importes = [{
-            "id": 0, "nom": "Casque Gaming RGB Sans Fil", "prix": "39.99",
-            "image": "https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=500",
-            "galerie": ["https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=500"],
-            "categorie": "gaming", "description": "Casque gaming haute performance."
-        }]
-    sauvegarder_produits(produits_importes)
-    return produits_importes
+    if produits_importes:
+        sauvegarder_produits(produits_importes)
+        return produits_importes
+    return []
 
 def sauvegarder_produits(produits):
     os.makedirs(os.path.dirname(LOCAL_STATE_FILE), exist_ok=True)
@@ -156,8 +151,6 @@ CSS_STYLED = """
     .lang-select { background: #581c87; color: white; border: 1px solid #7c3aed; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; }
     .cart-btn { background: #e11d48; color: white; text-decoration: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; font-size: 14px; display: flex; align-items: center; gap: 8px; }
     .cart-badge { background: white; color: #e11d48; border-radius: 50%; padding: 1px 7px; font-size: 12px; font-weight: 900; }
-    .top-trust-bar { background: #ffffff; border-bottom: 1px solid #e5e7eb; padding: 12px 30px; display: flex; justify-content: space-around; align-items: center; flex-wrap: wrap; gap: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-    .trust-item { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 700; color: #374155; }
     .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
     .cat-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 25px; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
     .cat-tag { background: #e2e8f0; color: #334155; padding: 8px 16px; border-radius: 20px; text-decoration: none; font-size: 13px; font-weight: 700; transition: all 0.2s; }
@@ -183,7 +176,7 @@ CSS_STYLED = """
 HTML_INDEX = """
 <!DOCTYPE html>
 <html lang="{{ lang }}">
-<head><meta charset="UTF-8"><title>Catalogue Direct</title>""" + CSS_STYLED + """</head>
+<head><meta charset="UTF-8"><title>Mon Shop Direct</title>""" + CSS_STYLED + """</head>
 <body>
     <div class="header">
         <a href="/?lang={{ lang }}" class="brand-logo">🛍️ {{ t.shop }}</a>
@@ -214,7 +207,7 @@ HTML_INDEX = """
             <a href="/?cat={{ slug }}&lang={{ lang }}{% if search_query %}&q={{ search_query }}{% endif %}" class="cat-tag {% if active_cat == slug %}active{% endif %}">{{ nom }}</a>
             {% endfor %}
         </div>
-        <div class="sec-header">🚀 Catalogue AliExpress {% if active_cat %}- {{ categories.get(active_cat, '') }}{% endif %} ({{ total_count }} articles)</div>
+        <div class="sec-header">🚀 Catalogue Direct {% if active_cat %}- {{ categories.get(active_cat, '') }}{% endif %} ({{ total_count }} articles)</div>
         <div class="grid">
             {% for p in produits %}
             <div class="card">
@@ -318,7 +311,7 @@ HTML_CHECKOUT = """
 <head><meta charset="UTF-8"><title>Validation Commande</title>""" + CSS_STYLED + """</head>
 <body>
     <div class="header">
-        <a href="/" class="brand-logo">🛍️ Catalogue Direct</a>
+        <a href="/" class="brand-logo">🛍️ Mon Shop Direct</a>
         <a href="/cart" style="color:white; text-decoration:none; font-weight:bold;">⬅️ Panier</a>
     </div>
     <div class="container" style="max-width: 650px;">
@@ -344,7 +337,7 @@ HTML_SUCCESS = """
 <html lang="fr">
 <head><meta charset="UTF-8"><title>Commande Validée</title>""" + CSS_STYLED + """</head>
 <body>
-    <div class="header"><a href="/" class="brand-logo">🛍️ Catalogue Direct</a></div>
+    <div class="header"><a href="/" class="brand-logo">🛍️ Mon Shop Direct</a></div>
     <div class="container" style="max-width: 750px;">
         <div style="background:white; border-radius: 12px; padding: 40px; text-align: center;">
             <h2 style="color: #16a34a; font-size: 26px; margin-bottom: 10px;">Paiement PayPal validé avec succès !</h2>
@@ -384,7 +377,7 @@ HTML_ADMIN = """
     </div>
     <div class="container">
         <div style="background: white; padding: 25px; border-radius: 12px; margin-bottom: 25px;">
-            <h3 style="color: #2e1065; margin-bottom: 10px;">📂 Importer un fichier CSV (AliExpress)</h3>
+            <h3 style="color: #2e1065; margin-bottom: 10px;">📂 Importer un fichier CSV</h3>
             <form action="/admin/import_csv" method="POST" enctype="multipart/form-data" style="display: flex; gap: 15px; align-items: center;">
                 <input type="file" name="fichier_csv" accept=".csv" required style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;">
                 <button type="submit" style="background: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold;">📥 Importer</button>
@@ -542,11 +535,51 @@ def admin_import_csv():
     if not session.get('is_admin'): return redirect(url_for('admin_login'))
     fichier = request.files.get('fichier_csv')
     if fichier:
-        os.makedirs(r"C:\csv.aliexpress", exist_ok=True)
-        fichier.save(os.path.join(r"C:\csv.aliexpress", fichier.filename))
-        global PRODUITS
-        PRODUITS = parser_dossier_csv()
-        sauvegarder_produits(PRODUITS)
+        dossier_temp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "temp_csv")
+        os.makedirs(dossier_temp, exist_ok=True)
+        chemin_fichier = os.path.join(dossier_temp, fichier.filename)
+        fichier.save(chemin_fichier)
+        
+        nouveaux_produits = []
+        try:
+            with open(chemin_fichier, mode='r', encoding='utf-8-sig', errors='ignore') as f:
+                lecteur = csv.DictReader(f)
+                c = 0
+                for ligne in lecteur:
+                    nom = ligne.get('Title') or ligne.get('nom') or 'Produit'
+                    prix = ligne.get('Sale price') or ligne.get('prix') or '19.99'
+                    if not prix: prix = '19.99'
+                    image = ligne.get('Product Image Url') or ligne.get('image') or ''
+                    if ',' in image: image = image.split(',')[0].strip()
+                    galerie_raw = ligne.get('Main images url') or ligne.get('galerie') or ''
+                    galerie = [img.strip() for img in galerie_raw.split(',') if img.strip()]
+                    if not galerie: galerie = [image]
+                    desc = ligne.get('Product description html') or ligne.get('description') or ''
+                    
+                    texte_complet = (nom + " " + str(desc)).lower()
+                    if any(k in texte_complet for k in ['pokemon', 'pokémon', 'card', 'carte']): categorie = "pokemon"
+                    elif any(k in texte_complet for k in ['gaming', 'gamer', 'clavier', 'souris', 'manette', 'headset', 'ps5', 'xbox']): categorie = "gaming"
+                    elif any(k in texte_complet for k in ['pc', 'ordinateur', 'laptop', 'ecran', 'cpu']): categorie = "pc"
+                    elif any(k in texte_complet for k in ['hifi', 'audio', 'casque', 'ecouteurs', 'enceinte', 'bluetooth', 'soundbar']): categorie = "hifi"
+                    elif any(k in texte_complet for k in ['telephone', 'smartphone', 'chargeur', 'cable', 'iphone', 'samsung']): categorie = "telephonie"
+                    elif any(k in texte_complet for k in ['chauffage', 'radiateur', 'ventilateur']): categorie = "chauffage"
+                    elif any(k in texte_complet for k in ['sport', 'fitness', 'velo']): categorie = "sport"
+                    elif any(k in texte_complet for k in ['lampe', 'eclairage', 'led', 'auto']): categorie = "eclairage"
+                    else: categorie = "general"
+
+                    nouveaux_produits.append({
+                        "id": c, "nom": nom, "prix": str(prix), "image": image,
+                        "galerie": galerie[:5], "categorie": categorie, "description": str(desc)[:300] + "..."
+                    })
+                    c += 1
+        except Exception as e:
+            print(f"Erreur import: {e}")
+
+        if nouveaux_produits:
+            global PRODUITS
+            PRODUITS = nouveaux_produits
+            sauvegarder_produits(PRODUITS)
+            
     return redirect(url_for('admin_panel'))
 
 if __name__ == '__main__':
