@@ -3,7 +3,7 @@ import urllib.parse
 import urllib.request
 
 app = Flask(__name__)
-app.secret_key = 'cle_secrete_boutique_v9'
+app.secret_key = 'cle_secrete_boutique_v10'
 
 PAYPAL_API_USER = "alvadojuan834_api1.gmail.com"
 PAYPAL_API_PWD = "6VUUOI36XVVXLICO"
@@ -11,7 +11,7 @@ PAYPAL_API_SIGNATURE = "AaRSU2y8OAIEIxg92K4Zpd.Ucl0BAZSsK.CC9mosIjzFIvsppRWx-4Y"
 PAYPAL_URL = "https://api-3t.paypal.com/nvp"
 ADMIN_PASSWORD = "monpassadmin123"
 
-# INTEGRATION EN DUR DE TON CATALOGUE COMPLET (411 VRAIS PRODUITS)
+# INTEGRATION EN DUR DE TES 411 VRAIS PRODUITS OFFICIELS
 PRODUITS = [
     {"id": 1, "nom": "ATTACK SHARK X85 clavier de jeu mécanique sans fil, TKL 82 touches, Structure de joint, bouton, clavier personnalisé rvb échangeable à chaud", "prix": "59.39", "image": "https://ae-pic-a1.aliexpress-media.com/kf/Sdbc1f777b46244e197f4cb39fb04f9e1c.jpg", "galerie": ["https://ae-pic-a1.aliexpress-media.com/kf/Sdbc1f777b46244e197f4cb39fb04f9e1c.jpg"], "categorie": "pc", "description": "ATTACK SHARK X85 clavier de jeu mécanique sans fil, TKL 82 touches, Structure de joint, bouton, clavier personnalisé rvb échangeable à chaud", "couleurs": ["Standard"], "tailles": ["Standard"]},
     {"id": 2, "nom": "Console de macros programmable AJAZZ AKP153 avec panneau de contrôle LCD visuel pour le jeu, le travail de bureau, le streaming et le montage vidéo", "prix": "74.39", "image": "https://ae-pic-a1.aliexpress-media.com/kf/S26c44fc58b75456cb028767272565a6av.jpg", "galerie": ["https://ae-pic-a1.aliexpress-media.com/kf/S26c44fc58b75456cb028767272565a6av.jpg"], "categorie": "pc", "description": "Console de macros programmable AJAZZ AKP153 avec panneau de contrôle LCD visuel pour le jeu, le travail de bureau, le streaming et le montage vidéo", "couleurs": ["Standard"], "tailles": ["Standard"]},
