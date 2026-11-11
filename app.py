@@ -5,6 +5,7 @@ import csv
 import urllib.parse
 import urllib.request
 import ast
+import io
 
 app = Flask(__name__)
 app.secret_key = 'cle_secrete_boutique_v8'
@@ -79,13 +80,20 @@ def parser_ligne_produit(ligne, current_id):
     }
 
 def charger_produits():
+    produits = []
     if os.path.exists(LOCAL_STATE_FILE):
-        produits = []
         try:
             with open(LOCAL_STATE_FILE, mode='r', encoding='utf-8') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    row['id'] = int(row['id'])
+                    if 'id' in row and row['id']:
+                        try:
+                            row['id'] = int(row['id'])
+                        except:
+                            row['id'] = len(produits)
+                    else:
+                        row['id'] = len(produits)
+
                     galerie_raw = row.get('galerie', '')
                     if galerie_raw.startswith('['):
                         try:
@@ -97,26 +105,24 @@ def charger_produits():
                     produits.append(row)
             if produits:
                 return produits
-        except:
-            pass
+        except Exception as e:
+            print(f"Erreur chargement local {LOCAL_STATE_FILE}: {e}")
 
-   produits_importes = []
-chemin_csv = "mes_produits_sauves.csv"
-c = 0
-
-if os.path.exists(chemin_csv):
-    try:
-        with open(chemin_csv, mode='r', encoding='utf-8') as f:
-            lecteur = csv.DictReader(f)
-            for ligne in lecteur:
-                produits_importes.append(parser_ligne(ligne))
-                c += 1
-    except Exception as e:
-        print(f"Erreur lecture {chemin_csv}: {e}")
-    if produits_importes:
-        sauvegarder_produits(produits_importes)
-        return produits_importes
-    return []
+    # Fallback si le fichier local n'est pas formaté ou vide au démarrage
+    chemin_csv = "mes_produits_sauves.csv"
+    if os.path.exists(chemin_csv):
+        try:
+            with open(chemin_csv, mode='r', encoding='utf-8') as f:
+                lecteur = csv.DictReader(f)
+                idx = 0
+                for ligne in lecteur:
+                    p_formate = parser_ligne_produit(ligne, idx)
+                    produits.append(p_formate)
+                    idx += 1
+        except Exception as e:
+            print(f"Erreur lecture {chemin_csv}: {e}")
+            
+    return produits
 
 def sauvegarder_produits(produits):
     os.makedirs(os.path.dirname(LOCAL_STATE_FILE), exist_ok=True)
@@ -533,7 +539,6 @@ def admin_import_csv():
     if f_uploaded:
         try:
             content = f_uploaded.read().decode('utf-8-sig', errors='ignore')
-            import io
             f_io = io.StringIO(content)
             lecteur = csv.DictReader(f_io)
             max_id = max([p['id'] for p in PRODUITS], default=-1) + 1
