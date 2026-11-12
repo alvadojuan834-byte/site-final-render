@@ -70,7 +70,17 @@ def calculer_prix_marge(prix_brut_str):
     return f"{prix_final:.2f}"
 
 def parser_ligne_produit(ligne, current_id):
-    nom = ligne.get('Title') or ligne.get('nom') or 'Produit AliExpress'
+    # Sécurité renforcée pour récupérer le vrai nom du produit peu importe le format de la colonne CSV
+    nom = (
+        ligne.get('Title') or 
+        ligne.get('Product Name') or 
+        ligne.get('subject') or 
+        ligne.get('nom') or 
+        ligne.get('Product Title') or
+        'Produit AliExpress'
+    )
+    if not nom or nom == 'nan':
+        nom = 'Produit AliExpress'
     
     prix_brut = (
         ligne.get('Sale price') or 
@@ -139,7 +149,7 @@ def parser_ligne_produit(ligne, current_id):
         "image": image,
         "galerie": galerie[:5], 
         "categorie": categorie, 
-        "description": str(desc)[:500],
+        "description": str(desc)[:1500],
         "couleur": variantes_couleur[current_id % len(variantes_couleur)],
         "taille": variantes_taille[current_id % len(variantes_taille)]
     }
@@ -173,7 +183,7 @@ def charger_produits():
 
     produits_importes = []
     chemin_csv = "mes_produits_sauves.csv"
-    if os.path.exists(chemin_csv) and chemin_csv != LOCAL_STATE_FILE:
+    if os.path.exists(chemin_csv):
         try:
             with open(chemin_csv, mode='r', encoding='utf-8') as f:
                 lecteur = csv.DictReader(f)
@@ -517,39 +527,42 @@ def index():
     
     cat = request.args.get('cat', '')
     sort = request.args.get('sort', 'default')
-    q = request.args.get('q', '').strip().lower()
-    
-    filtered = PRODUITS
-    if cat:
-        filtered = [p for p in filtered if p.get('categorie') == cat]
-    if q:
-        filtered = [p for p in filtered if q in p.get('nom', '').lower() or q in p.get('description', '').lower()]
-        
-    if sort == 'price_asc':
-        filtered = sorted(filtered, key=lambda x: float(x.get('prix', 0)))
-    elif sort == 'price_desc':
-        filtered = sorted(filtered, key=lambda x: float(x.get('prix', 0)), reverse=True)
-    elif sort == 'new':
-        filtered = sorted(filtered, key=lambda x: int(x.get('id', 0)), reverse=True)
-        
+    q = request.args.get('q', '').lower()
     page = int(request.args.get('page', 1))
-    per_page = 24
-    total_count = len(filtered)
-    total_pages = (total_count + per_page - 1) // per_page
-    start = (page - 1) * per_page
-    end = start + per_page
-    page_produits = filtered[start:end]
+    per_page = 16
+
+    liste = PRODUITS
+    if cat:
+        liste = [p for p in liste if p.get('categorie') == cat]
+    if q:
+        liste = [p for p in liste if q in p.get('nom', '').lower() or q in p.get('description', '').lower()]
+
+    if sort == 'price_asc':
+        liste = sorted(liste, key=lambda x: float(x.get('prix', 0)))
+    elif sort == 'price_desc':
+        liste = sorted(liste, key=lambda x: float(x.get('prix', 0)), reverse=True)
+    elif sort == 'new':
+        liste = sorted(liste, key=lambda x: x.get('id', 0), reverse=True)
+
+    total_count = len(liste)
+    total_pages = max(1, (total_count + per_page - 1) // per_page)
+    page = max(1, min(page, total_pages))
     
-    return render_template_string(HTML_INDEX, 
-        produits=page_produits, 
+    debut = (page - 1) * per_page
+    fin = debut + per_page
+    produits_page = liste[debut:fin]
+
+    return render_template_string(
+        HTML_INDEX, 
+        produits=produits_page, 
+        t=t, 
+        lang=lang, 
         categories=CATEGORIES, 
         active_cat=cat, 
         current_sort=sort, 
         search_query=q, 
-        lang=lang, 
-        t=t,
-        page=page,
-        total_pages=total_pages,
+        page=page, 
+        total_pages=total_pages, 
         total_count=total_count
     )
 
@@ -562,7 +575,8 @@ def product_detail(product_id):
     p = next((item for item in PRODUITS if item["id"] == product_id), None)
     if not p:
         return redirect(url_for('index', lang=lang))
-    return render_template_string(HTML_PRODUCT, p=p, lang=lang, t=t)
+    
+    return render_template_string(HTML_PRODUCT, p=p, t=t, lang=lang)
 
 @app.route("/add/<int:product_id>", methods=['POST'])
 def add_to_cart(product_id):
@@ -572,16 +586,7 @@ def add_to_cart(product_id):
         cart = session.get('cart', [])
         cart.append(p)
         session['cart'] = cart
-    return redirect(url_for('index', lang=lang))
-
-@app.route("/cart")
-def view_cart():
-    lang = request.args.get('lang', 'fr')
-    if lang not in TRADUCTIONS: lang = 'fr'
-    t = TRADUCTIONS[lang]
-    cart = session.get('cart', [])
-    total = sum(float(item['prix']) for item in cart)
-    return render_template_string(HTML_CART, cart=cart, total=total, lang=lang, t=t)
+    return redirect(request.referrer or url_for('index', lang=lang))
 
 @app.route("/remove/<int:index>")
 def remove_from_cart(index):
@@ -592,16 +597,20 @@ def remove_from_cart(index):
         session['cart'] = cart
     return redirect(url_for('view_cart', lang=lang))
 
+@app.route("/cart")
+def view_cart():
+    lang = request.args.get('lang', 'fr')
+    if lang not in TRADUCTIONS: lang = 'fr'
+    t = TRADUCTIONS[lang]
+    cart = session.get('cart', [])
+    total = sum(float(item['prix']) for item in cart)
+    return render_template_string(HTML_CART, cart=cart, total=total, t=t, lang=lang)
+
 @app.route("/clear")
 def clear_cart():
     lang = request.args.get('lang', 'fr')
     session.pop('cart', None)
     return redirect(url_for('view_cart', lang=lang))
-
-@app.route("/set_lang", methods=['POST'])
-def set_lang():
-    lang = request.form.get('lang', 'fr')
-    return redirect(url_for('index', lang=lang))
 
 @app.route("/checkout")
 def checkout():
@@ -609,23 +618,27 @@ def checkout():
 
 @app.route("/process_order", methods=['POST'])
 def process_order():
-    gateway = request.form.get('gateway')
     session.pop('cart', None)
     return render_template_string(HTML_SUCCESS)
+
+@app.route("/set_lang", methods=['POST'])
+def set_lang():
+    lang = request.form.get('lang', 'fr')
+    return redirect(url_for('index', lang=lang))
+
+@app.route("/admin")
+def admin_panel():
+    if not session.get('admin_logged'):
+        return redirect(url_for('admin_login'))
+    return render_template_string(HTML_ADMIN)
 
 @app.route("/admin/login", methods=['GET', 'POST'])
 def admin_login():
     if request.method == 'POST':
         if request.form.get('password') == ADMIN_PASSWORD:
             session['admin_logged'] = True
-            return redirect(url_for('admin_dashboard'))
+            return redirect(url_for('admin_panel'))
     return render_template_string(HTML_LOGIN)
-
-@app.route("/admin")
-def admin_dashboard():
-    if not session.get('admin_logged'):
-        return redirect(url_for('admin_login'))
-    return render_template_string(HTML_ADMIN)
 
 @app.route("/admin/logout")
 def admin_logout():
@@ -633,4 +646,4 @@ def admin_logout():
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(debug=True, port=5000)
